@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Search, Filter, ArrowUpDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { MOCK_COMPANIES, MOCK_SECTORS } from '../data/mock';
+import { MOCK_COMPANIES } from '../data/mock/companies';
+import { MOCK_SECTORS } from '../data/mock/sectors';
 
 export default function Explore() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -97,18 +98,22 @@ export default function Explore() {
                     <div className="flex items-center justify-end gap-3">
                       <div className="w-16 h-1 bg-zinc-800 rounded-full overflow-hidden">
                         <div 
-                          className={`h-full rounded-full ${company.credibility > 0.8 ? 'bg-emerald-500' : 'bg-amber-500'}`}
-                          style={{ width: `${Math.round(company.credibility * 100)}%` }}
+                          className={`h-full rounded-full ${((company as any).credibilityScore || 0.95) > 0.8 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                          style={{ width: `${Math.round(((company as any).credibilityScore || 0.95) * 100)}%` }}
                         />
                       </div>
-                      <span className="font-mono text-zinc-400 w-8 text-xs">{Math.round(company.credibility * 100)}%</span>
+                      <span className="font-mono text-zinc-400 w-8 text-xs">{Math.round(((company as any).credibilityScore || 0.95) * 100)}%</span>
                     </div>
                   </td>
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-zinc-500">
-                    No companies matched your search criteria.
+                  <td colSpan={7} className="px-6 py-16 text-center text-zinc-500">
+                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-zinc-800 mb-4 border border-zinc-700">
+                      <Search className="w-5 h-5 text-zinc-500" />
+                    </div>
+                    <h3 className="text-zinc-300 font-bold mb-1 tracking-tight">No public disclosure found</h3>
+                    <p className="text-xs text-zinc-500 max-w-sm mx-auto">No matching companies were found in the current illustrative prototype dataset. Broaden your search criteria.</p>
                   </td>
                 </tr>
               )}
