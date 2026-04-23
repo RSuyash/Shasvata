@@ -1,0 +1,291 @@
+name: Emergency Deploy Fallback (SSH)
+# SOP reference: docs/ops/DEVELOPMENT_WORKFLOW.md
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why are you using the SSH fallback?"
+        required: true
+        type: string
+      deploy_sha:
+        description: "Optional commit SHA to redeploy. Defaults to current main."
+        required: false
+        type: string
+
+concurrency:
+  group: deploy-fallback-main
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      deploy_sha: ${{ steps.refs.outputs.deploy_sha }}
+      api_image: ${{ steps.refs.outputs.api_image }}
+      public_image: ${{ steps.refs.outputs.public_image }}
+      app_image: ${{ steps.refs.outputs.app_image }}
+    steps:
+      - name: Resolve deploy SHA and image refs
+        id: refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF_NAME}" != "main" ]; then
+            echo "Emergency deploys must run from main." >&2
+            exit 1
+          fi
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          sha="${{ github.event.inputs.deploy_sha }}"
+          if [ -z "$sha" ]; then sha="${GITHUB_SHA}"; fi
+          echo "deploy_sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "api_image=ghcr.io/${owner}/shasvata-api:${sha}" >> "$GITHUB_OUTPUT"
+          echo "public_image=ghcr.io/${owner}/shasvata-web-public:${sha}" >> "$GITHUB_OUTPUT"
+          echo "app_image=ghcr.io/${owner}/shasvata-web-app:${sha}" >> "$GITHUB_OUTPUT"
+
+  build-images:
+    needs: resolve
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository at target SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.deploy_sha }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push emergency images
+        shell: bash
+        env:
+          OWNER: ${{ github.repository_owner }}
+          DEPLOY_SHA: ${{ needs.resolve.outputs.deploy_sha }}
+        run: |
+          set -euo pipefail
+          owner="${OWNER,,}"
+
+          build_service() {
+            local context_path="$1"
+            local repo_name="$2"
+            local release="ghcr.io/${owner}/${repo_name}:${DEPLOY_SHA}"
+            local main_tag="ghcr.io/${owner}/${repo_name}:main"
+
+            docker buildx build \
+              --push \
+              --provenance=false \
+              -t "$release" \
+              -t "$main_tag" \
+              "$context_path"
+          }
+
+            build_service "services/api" "shasvata-api"
+            build_service "services/web-public" "shasvata-web-public"
+            build_service "services/web-app" "shasvata-web-app"
+
+  deploy:
+    needs: [resolve, build-images]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Resolve SSH ports
+        id: ssh_ports
+        shell: bash
+        run: |
+          set -euo pipefail
+          primary="${{ secrets.VPS_SSH_PORT }}"; fallback="${{ secrets.VPS_SSH_FALLBACK_PORT }}"
+          if [ -z "$primary" ]; then primary="22"; fi
+          if [ -z "$fallback" ] || [ "$fallback" = "$primary" ]; then fallback=""; fi
+          echo "primary=$primary" >> "$GITHUB_OUTPUT"
+          echo "fallback=$fallback" >> "$GITHUB_OUTPUT"
+
+      - name: Emergency deploy via SSH (primary port)
+        id: deploy_primary
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          DEPLOY_SHA: ${{ needs.resolve.outputs.deploy_sha }}
+          DEPLOY_REPO_SLUG: ${{ github.repository }}
+          NG_API_IMAGE: ${{ needs.resolve.outputs.api_image }}
+          NG_PUBLIC_IMAGE: ${{ needs.resolve.outputs.public_image }}
+          NG_APP_IMAGE: ${{ needs.resolve.outputs.app_image }}
+          DEPLOY_API: "true"
+          DEPLOY_PUBLIC: "true"
+          DEPLOY_APP: "true"
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ steps.ssh_ports.outputs.primary }}
+          timeout: 90s
+          command_timeout: 30m
+          envs: DEPLOY_SHA,DEPLOY_REPO_SLUG,NG_API_IMAGE,NG_PUBLIC_IMAGE,NG_APP_IMAGE,DEPLOY_API,DEPLOY_PUBLIC,DEPLOY_APP,GHCR_USERNAME,GHCR_TOKEN
+          script: |
+            set -euo pipefail
+            REPO_DIR="$HOME/apps/shasvata"
+            mkdir -p "$(dirname "$REPO_DIR")"
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              git clone "git@github.com:${DEPLOY_REPO_SLUG}.git" "$REPO_DIR"
+            fi
+            cd "$REPO_DIR"
+            git remote set-url origin "git@github.com:${DEPLOY_REPO_SLUG}.git"
+            git config core.sshCommand 'ssh -i ~/.ssh/id_github_naya -o IdentitiesOnly=yes -o StrictHostKeyChecking=no'
+            dirty_worktree=0
+            if ! git diff --quiet; then dirty_worktree=1; fi
+            if ! git diff --cached --quiet; then dirty_worktree=1; fi
+            if [ -n "$(git ls-files --others --exclude-standard)" ]; then dirty_worktree=1; fi
+            if [ "$dirty_worktree" -eq 1 ]; then
+              git stash push --include-untracked --message "ci-bootstrap-$(date -u +%Y%m%dT%H%M%SZ)" || true
+            fi
+            git fetch --prune origin main
+            if ! git cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null; then
+              git fetch --depth=1 origin "$DEPLOY_SHA"
+            fi
+            git cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null
+            if [ "$(git rev-parse HEAD)" != "$(git rev-parse "$DEPLOY_SHA")" ]; then
+              git branch "backup/predeploy-$(date -u +%Y%m%dT%H%M%SZ)-$(git rev-parse --short HEAD)" || true
+            fi
+            git checkout -B main "$DEPLOY_SHA"
+            git reset --hard "$DEPLOY_SHA"
+            git clean -fdx -e .env -e .env.* -e .env.bak* -e 'docker-compose*.yml.bak*'
+            chmod +x scripts/deploy/deploy_main.sh || true
+            export DEPLOY_SKIP_GIT_SYNC=true
+            export NG_API_IMAGE NG_PUBLIC_IMAGE NG_APP_IMAGE
+            bash scripts/deploy/deploy_main.sh "$REPO_DIR"
+
+      - name: Emergency deploy via SSH (fallback port)
+        if: ${{ steps.deploy_primary.outcome == 'failure' && steps.ssh_ports.outputs.fallback != '' }}
+        id: deploy_fallback
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          DEPLOY_SHA: ${{ needs.resolve.outputs.deploy_sha }}
+          DEPLOY_REPO_SLUG: ${{ github.repository }}
+          NG_API_IMAGE: ${{ needs.resolve.outputs.api_image }}
+          NG_PUBLIC_IMAGE: ${{ needs.resolve.outputs.public_image }}
+          NG_APP_IMAGE: ${{ needs.resolve.outputs.app_image }}
+          DEPLOY_API: "true"
+          DEPLOY_PUBLIC: "true"
+          DEPLOY_APP: "true"
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ steps.ssh_ports.outputs.fallback }}
+          timeout: 90s
+          command_timeout: 30m
+          envs: DEPLOY_SHA,DEPLOY_REPO_SLUG,NG_API_IMAGE,NG_PUBLIC_IMAGE,NG_APP_IMAGE,DEPLOY_API,DEPLOY_PUBLIC,DEPLOY_APP,GHCR_USERNAME,GHCR_TOKEN
+          script: |
+            set -euo pipefail
+            REPO_DIR="$HOME/apps/shasvata"
+            mkdir -p "$(dirname "$REPO_DIR")"
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              git clone "git@github.com:${DEPLOY_REPO_SLUG}.git" "$REPO_DIR"
+            fi
+            cd "$REPO_DIR"
+            git remote set-url origin "git@github.com:${DEPLOY_REPO_SLUG}.git"
+            git config core.sshCommand 'ssh -i ~/.ssh/id_github_naya -o IdentitiesOnly=yes -o StrictHostKeyChecking=no'
+            dirty_worktree=0
+            if ! git diff --quiet; then dirty_worktree=1; fi
+            if ! git diff --cached --quiet; then dirty_worktree=1; fi
+            if [ -n "$(git ls-files --others --exclude-standard)" ]; then dirty_worktree=1; fi
+            if [ "$dirty_worktree" -eq 1 ]; then
+              git stash push --include-untracked --message "ci-bootstrap-$(date -u +%Y%m%dT%H%M%SZ)" || true
+            fi
+            git fetch --prune origin main
+            if ! git cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null; then
+              git fetch --depth=1 origin "$DEPLOY_SHA"
+            fi
+            git cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null
+            if [ "$(git rev-parse HEAD)" != "$(git rev-parse "$DEPLOY_SHA")" ]; then
+              git branch "backup/predeploy-$(date -u +%Y%m%dT%H%M%SZ)-$(git rev-parse --short HEAD)" || true
+            fi
+            git checkout -B main "$DEPLOY_SHA"
+            git reset --hard "$DEPLOY_SHA"
+            git clean -fdx -e .env -e .env.* -e .env.bak* -e 'docker-compose*.yml.bak*'
+            chmod +x scripts/deploy/deploy_main.sh || true
+            export DEPLOY_SKIP_GIT_SYNC=true
+            export NG_API_IMAGE NG_PUBLIC_IMAGE NG_APP_IMAGE
+            bash scripts/deploy/deploy_main.sh "$REPO_DIR"
+
+      - name: Resolve deploy transport result
+        if: ${{ always() }}
+        id: deploy_result
+        shell: bash
+        env:
+          PRIMARY_OUTCOME: ${{ steps.deploy_primary.outcome }}
+          FALLBACK_OUTCOME: ${{ steps.deploy_fallback.outcome }}
+        run: |
+          set -euo pipefail
+          primary="${PRIMARY_OUTCOME:-}"
+          fallback="${FALLBACK_OUTCOME:-}"
+          if [ "$primary" = "success" ] || [ "$fallback" = "success" ]; then
+            echo "succeeded=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "succeeded=false" >> "$GITHUB_OUTPUT"
+          echo "Primary SSH outcome: ${primary:-missing}" >&2
+          echo "Fallback SSH outcome: ${fallback:-missing}" >&2
+
+      - name: Fail if deploy transport never succeeded
+        if: ${{ steps.deploy_result.outputs.succeeded != 'true' }}
+        shell: bash
+        run: |
+          echo "Primary and fallback SSH deploy attempts failed." >&2
+          exit 1
+
+      - name: Post-deploy smoke checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import time, urllib.request
+          last_error = None
+          for attempt in range(1, 25):
+              try:
+                  with urllib.request.urlopen("https://api.shasvata.com/health", timeout=10) as r:
+                      if r.status == 200:
+                          print(f"[SMOKE][PASS] api -> {r.status}")
+                          raise SystemExit(0)
+              except SystemExit: raise
+              except Exception as e: last_error = f"GET /health failed: {e}"
+              print(f"Health check attempt {attempt}/24 failed; retrying in 5s...")
+              time.sleep(5)
+          raise SystemExit(f"[SMOKE][FAIL] {last_error}")
+          PY
+
+      - name: Collect remote diagnostics on failure
+        if: ${{ failure() }}
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ steps.ssh_ports.outputs.primary }}
+          timeout: 45s
+          command_timeout: 10m
+          script: |
+            set +e
+            cd ~/apps/shasvata
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=200 || true

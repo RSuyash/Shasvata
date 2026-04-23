@@ -1,20 +1,72 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Shasvata
 
-# Run and deploy your AI Studio app
+Growth infrastructure platform — marketing website, lead intake API, and client dashboard.
 
-This contains everything you need to run your app locally.
+## Services
 
-View your app in AI Studio: https://ai.studio/apps/94d46668-ac3c-4543-9e15-f761897937b6
+| Service | Path | Port | Domain |
+|---------|------|------|--------|
+| **web-public** | `services/web-public` | 3000 | `shasvata.com` |
+| **api** | `services/api` | 3001 | `api.shasvata.com` |
+| **web-app** | `services/web-app` | 3002 | `shasvata.com/app` |
+| **iccaa-web** | `services/iccaa-web` | 8080 | `iccaa.shasvata.com` |
 
-## Run Locally
+## Canonical Workspace Routes
 
-**Prerequisites:**  Node.js
+The authenticated workspace now lives under the `/dashboard` namespace:
 
+- `/dashboard`
+- `/dashboard/projects`
+- `/dashboard/projects/[projectId]`
+- `/dashboard/projects/[projectId]/leads`
+- `/dashboard/projects/[projectId]/billing`
+- `/dashboard/projects/[projectId]/analytics`
+- `/dashboard/settings`
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Legacy `/projects` URLs are preserved as permanent redirects so existing links and bookmarks continue to work.
+
+## Quick Start
+
+```bash
+# 1. Clone
+git clone git@github.com:RSuyash/Shasvata.git
+cd shasvata
+
+# 2. Install dependencies
+cd services/web-public && npm ci && cd ../..
+cd services/api && npm ci && cd ../..
+cd services/web-app && npm ci && cd ../..
+cd services/iccaa-web && npm ci && cd ../..
+
+# 3. Set up environment
+cp .env.example .env
+# Edit .env with your Notion API key, Resend key, etc.
+
+# 4. Run locally
+cd services/web-public && npm run dev   # http://localhost:3000
+cd services/api && npm run dev          # http://localhost:3001
+cd services/web-app && npm run dev      # http://localhost:3002/app
+cd services/iccaa-web && npm run dev    # http://localhost:3003
+
+# Or with Docker:
+docker compose up --build
+```
+
+## Development Workflow
+
+See [docs/ops/DEVELOPMENT_WORKFLOW.md](docs/ops/DEVELOPMENT_WORKFLOW.md).
+
+- `main` is release-only — no direct commits
+- Every change starts from a GitHub Issue
+- Branch naming: `feat/<issue-number>-<name>`, `fix/<issue-number>-<name>`, etc.
+- PRs require issue linkage and CI green before merge
+
+## Deployment
+
+Merge to `main` triggers automatic deployment:
+
+1. PR builds Docker images → pushes to GHCR
+2. Deploy workflow promotes images and SSH deploys to VPS
+3. Post-deploy smoke checks validate all services
+
+See [docs/architecture.md](docs/architecture.md) for infrastructure details.

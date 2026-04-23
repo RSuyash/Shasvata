@@ -1,0 +1,476 @@
+name: Catch-up Deploy (GHCR)
+# SOP reference: docs/ops/DEVELOPMENT_WORKFLOW.md
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why is a catch-up deploy needed?"
+        required: true
+        type: string
+      target_sha:
+        description: "Optional main commit SHA to deploy. Defaults to current origin/main."
+        required: false
+        type: string
+      deploy_api:
+        description: "Deploy the API service"
+        required: true
+        default: true
+        type: boolean
+      deploy_public:
+        description: "Deploy the web-public service"
+        required: true
+        default: true
+        type: boolean
+      deploy_app:
+        description: "Deploy the web-app service"
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  group: deploy-catchup-main
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      deploy_sha: ${{ steps.meta.outputs.deploy_sha }}
+      current_main_sha: ${{ steps.meta.outputs.current_main_sha }}
+      promote_main_tag: ${{ steps.meta.outputs.promote_main_tag }}
+      owner: ${{ steps.meta.outputs.owner }}
+      pr_number: ${{ steps.pr.outputs.pr_number }}
+      pr_head_sha: ${{ steps.pr.outputs.pr_head_sha }}
+      deploy_api: ${{ steps.services.outputs.deploy_api }}
+      deploy_public: ${{ steps.services.outputs.deploy_public }}
+      deploy_app: ${{ steps.services.outputs.deploy_app }}
+      api_image: ${{ steps.meta.outputs.api_image }}
+      public_image: ${{ steps.meta.outputs.public_image }}
+      app_image: ${{ steps.meta.outputs.app_image }}
+    steps:
+      - name: Ensure catch-up deploy runs from main
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF_NAME}" != "main" ]; then
+            echo "Catch-up deploys must run from main." >&2
+            exit 1
+          fi
+
+      - name: Resolve selected services
+        id: services
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "deploy_api=${{ github.event.inputs.deploy_api }}" >> "$GITHUB_OUTPUT"
+          echo "deploy_public=${{ github.event.inputs.deploy_public }}" >> "$GITHUB_OUTPUT"
+          echo "deploy_app=${{ github.event.inputs.deploy_app }}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve target SHA and image refs
+        id: meta
+        uses: actions/github-script@v8
+        env:
+          DEPLOY_API: ${{ steps.services.outputs.deploy_api }}
+          DEPLOY_PUBLIC: ${{ steps.services.outputs.deploy_public }}
+          DEPLOY_APP: ${{ steps.services.outputs.deploy_app }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const ownerLower = owner.toLowerCase();
+            const targetShaInput = (context.payload.inputs?.target_sha || "").trim();
+            const deployApi = process.env.DEPLOY_API === "true";
+            const deployPublic = process.env.DEPLOY_PUBLIC === "true";
+            const deployApp = process.env.DEPLOY_APP === "true";
+
+            const { data: branch } = await github.rest.repos.getBranch({ owner, repo, branch: "main" });
+            const currentMainSha = branch.commit.sha;
+            const deploySha = targetShaInput || currentMainSha;
+            const promoteMainTag = String(deploySha === currentMainSha);
+
+            const imageFor = (repoName, selected) =>
+              `ghcr.io/${ownerLower}/${repoName}:${selected ? deploySha : "main"}`;
+
+            core.setOutput("owner", ownerLower);
+            core.setOutput("deploy_sha", deploySha);
+            core.setOutput("current_main_sha", currentMainSha);
+            core.setOutput("promote_main_tag", promoteMainTag);
+            core.setOutput("api_image", imageFor("shasvata-api", deployApi));
+            core.setOutput("public_image", imageFor("shasvata-web-public", deployPublic));
+            core.setOutput("app_image", imageFor("shasvata-web-app", deployApp));
+
+      - name: Resolve associated merged PR metadata
+        id: pr
+        uses: actions/github-script@v8
+        env:
+          DEPLOY_SHA: ${{ steps.meta.outputs.deploy_sha }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const commitSha = process.env.DEPLOY_SHA;
+            const { data: pullRequests } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              owner, repo, commit_sha: commitSha,
+            });
+
+            let mergedPull = pullRequests.find((pr) => Boolean(pr.merged_at));
+
+            if (!mergedPull) {
+              const { data: commit } = await github.rest.repos.getCommit({ owner, repo, ref: commitSha });
+              const match = (commit.commit.message || "").match(/#(\d+)/);
+              if (match) {
+                const pullNumber = Number(match[1]);
+                try {
+                  const { data: pullRequest } = await github.rest.pulls.get({ owner, repo, pull_number: pullNumber });
+                  if (pullRequest.merged_at) mergedPull = pullRequest;
+                } catch (error) {
+                  if (error?.status !== 404) {
+                    throw error;
+                  }
+                  core.info(`Commit message reference #${pullNumber} is not a pull request; continuing.`);
+                }
+              }
+            }
+
+            if (!mergedPull) {
+              core.info(`No merged pull request found for ${commitSha}; continuing in direct-push mode.`);
+              core.setOutput("pr_number", "");
+              core.setOutput("pr_head_sha", "");
+              return;
+            }
+
+            core.setOutput("pr_number", String(mergedPull.number));
+            core.setOutput("pr_head_sha", mergedPull.head.sha);
+
+  await-pr-artifacts:
+    needs: resolve
+    runs-on: ubuntu-latest
+    permissions:
+      checks: read
+      contents: read
+    steps:
+      - name: Wait for PR artifact readiness
+        if: ${{ needs.resolve.outputs.pr_head_sha != '' }}
+        uses: actions/github-script@v8
+        env:
+          PR_HEAD_SHA: ${{ needs.resolve.outputs.pr_head_sha }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const headSha = process.env.PR_HEAD_SHA;
+            if (!headSha) {
+              core.setFailed("PR head SHA is missing.");
+              return;
+            }
+
+            for (let attempt = 1; attempt <= 36; attempt += 1) {
+              const { data } = await github.rest.checks.listForRef({
+                owner, repo, ref: headSha, filter: "latest", per_page: 100,
+              });
+              const releaseArtifacts = data.check_runs.find((run) => run.name === "release-artifacts");
+              if (releaseArtifacts?.status === "completed" && releaseArtifacts.conclusion === "success") {
+                core.info(`release-artifacts succeeded for ${headSha}.`);
+                return;
+              }
+              if (releaseArtifacts?.status === "completed") {
+                core.setFailed(`release-artifacts concluded with ${releaseArtifacts.conclusion} for ${headSha}.`);
+                return;
+              }
+              core.info(`Attempt ${attempt}/36: waiting for release-artifacts...`);
+              await new Promise((resolve) => setTimeout(resolve, 5000));
+            }
+            core.setFailed(`Timed out waiting for release-artifacts for ${headSha}.`);
+
+      - name: Skip PR artifact wait for direct push
+        if: ${{ needs.resolve.outputs.pr_head_sha == '' }}
+        shell: bash
+        run: |
+          echo "No merged PR metadata was found, so PR artifact gating is skipped."
+
+  promote-release-images:
+    needs: [resolve, await-pr-artifacts]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository for direct builds
+        if: ${{ needs.resolve.outputs.pr_number == '' }}
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Set up Docker Buildx
+        if: ${{ needs.resolve.outputs.pr_number == '' }}
+        uses: docker/setup-buildx-action@v3
+
+      - name: Promote release images
+        shell: bash
+        env:
+          OWNER: ${{ needs.resolve.outputs.owner }}
+          DEPLOY_SHA: ${{ needs.resolve.outputs.deploy_sha }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+          DEPLOY_API: ${{ needs.resolve.outputs.deploy_api }}
+          DEPLOY_PUBLIC: ${{ needs.resolve.outputs.deploy_public }}
+          DEPLOY_APP: ${{ needs.resolve.outputs.deploy_app }}
+          PROMOTE_MAIN_TAG: ${{ needs.resolve.outputs.promote_main_tag }}
+        run: |
+          set -euo pipefail
+
+          build_direct_service() {
+            local context_path="$1"
+            local repo_name="$2"
+            local selected="$3"
+            local release="ghcr.io/${OWNER}/${repo_name}:${DEPLOY_SHA}"
+            local main_tag="ghcr.io/${OWNER}/${repo_name}:main"
+
+            if [ "$selected" != "true" ]; then
+              return 0
+            fi
+
+            docker buildx build \
+              --push \
+              --provenance=false \
+              -t "$release" \
+              -t "$main_tag" \
+              "$context_path"
+          }
+
+          promote_service() {
+            local repo="$1"
+            local selected="$2"
+
+            if [ "$selected" = "true" ]; then
+              local source="ghcr.io/${OWNER}/${repo}:pr-${PR_NUMBER}"
+              docker buildx imagetools inspect "$source" >/dev/null
+              if [ "$PROMOTE_MAIN_TAG" = "true" ]; then
+                docker buildx imagetools create -t "ghcr.io/${OWNER}/${repo}:${DEPLOY_SHA}" -t "ghcr.io/${OWNER}/${repo}:main" "$source"
+              else
+                docker buildx imagetools create -t "ghcr.io/${OWNER}/${repo}:${DEPLOY_SHA}" "$source"
+              fi
+            fi
+          }
+
+          if [ -n "${PR_NUMBER}" ]; then
+            promote_service "shasvata-api" "$DEPLOY_API"
+            promote_service "shasvata-web-public" "$DEPLOY_PUBLIC"
+            promote_service "shasvata-web-app" "$DEPLOY_APP"
+          else
+            build_direct_service "services/api" "shasvata-api" "$DEPLOY_API"
+            build_direct_service "services/web-public" "shasvata-web-public" "$DEPLOY_PUBLIC"
+            build_direct_service "services/web-app" "shasvata-web-app" "$DEPLOY_APP"
+          fi
+
+  deploy:
+    needs: [resolve, promote-release-images]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Resolve SSH ports
+        id: ssh_ports
+        shell: bash
+        run: |
+          set -euo pipefail
+          primary="${{ secrets.VPS_SSH_PORT }}"
+          fallback="${{ secrets.VPS_SSH_FALLBACK_PORT }}"
+          if [ -z "$primary" ]; then primary="22"; fi
+          if [ -z "$fallback" ] || [ "$fallback" = "$primary" ]; then fallback=""; fi
+          echo "primary=$primary" >> "$GITHUB_OUTPUT"
+          echo "fallback=$fallback" >> "$GITHUB_OUTPUT"
+
+      - name: Catch-up deploy via SSH
+        id: deploy_primary
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          DEPLOY_SHA: ${{ needs.resolve.outputs.deploy_sha }}
+          DEPLOY_REPO_SLUG: ${{ github.repository }}
+          NG_API_IMAGE: ${{ needs.resolve.outputs.api_image }}
+          NG_PUBLIC_IMAGE: ${{ needs.resolve.outputs.public_image }}
+          NG_APP_IMAGE: ${{ needs.resolve.outputs.app_image }}
+          DEPLOY_API: ${{ needs.resolve.outputs.deploy_api }}
+          DEPLOY_PUBLIC: ${{ needs.resolve.outputs.deploy_public }}
+          DEPLOY_APP: ${{ needs.resolve.outputs.deploy_app }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ steps.ssh_ports.outputs.primary }}
+          timeout: 90s
+          command_timeout: 30m
+          envs: DEPLOY_SHA,DEPLOY_REPO_SLUG,NG_API_IMAGE,NG_PUBLIC_IMAGE,NG_APP_IMAGE,DEPLOY_API,DEPLOY_PUBLIC,DEPLOY_APP,GHCR_USERNAME,GHCR_TOKEN
+          script: |
+            set -euo pipefail
+            REPO_DIR="$HOME/apps/shasvata"
+            mkdir -p "$(dirname "$REPO_DIR")"
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              git clone "git@github.com:${DEPLOY_REPO_SLUG}.git" "$REPO_DIR"
+            fi
+            cd "$REPO_DIR"
+            git remote set-url origin "git@github.com:${DEPLOY_REPO_SLUG}.git"
+            git config core.sshCommand 'ssh -i ~/.ssh/id_github_naya -o IdentitiesOnly=yes -o StrictHostKeyChecking=no'
+            dirty_worktree=0
+            if ! git diff --quiet; then dirty_worktree=1; fi
+            if ! git diff --cached --quiet; then dirty_worktree=1; fi
+            if [ -n "$(git ls-files --others --exclude-standard)" ]; then dirty_worktree=1; fi
+            if [ "$dirty_worktree" -eq 1 ]; then
+              git stash push --include-untracked --message "ci-bootstrap-$(date -u +%Y%m%dT%H%M%SZ)" || true
+            fi
+            git fetch --prune origin main
+            if ! git cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null; then
+              git fetch --depth=1 origin "$DEPLOY_SHA"
+            fi
+            git cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null
+            if [ "$(git rev-parse HEAD)" != "$(git rev-parse "$DEPLOY_SHA")" ]; then
+              git branch "backup/predeploy-$(date -u +%Y%m%dT%H%M%SZ)-$(git rev-parse --short HEAD)" || true
+            fi
+            git checkout -B main "$DEPLOY_SHA"
+            git reset --hard "$DEPLOY_SHA"
+            git clean -fdx -e .env -e .env.* -e .env.bak* -e 'docker-compose*.yml.bak*'
+            chmod +x scripts/deploy/deploy_main.sh || true
+            export DEPLOY_SKIP_GIT_SYNC=true
+            export NG_API_IMAGE NG_PUBLIC_IMAGE NG_APP_IMAGE
+            bash scripts/deploy/deploy_main.sh "$REPO_DIR"
+
+      - name: Catch-up deploy via SSH (fallback port)
+        if: ${{ steps.deploy_primary.outcome == 'failure' && steps.ssh_ports.outputs.fallback != '' }}
+        id: deploy_fallback
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          DEPLOY_SHA: ${{ needs.resolve.outputs.deploy_sha }}
+          DEPLOY_REPO_SLUG: ${{ github.repository }}
+          NG_API_IMAGE: ${{ needs.resolve.outputs.api_image }}
+          NG_PUBLIC_IMAGE: ${{ needs.resolve.outputs.public_image }}
+          NG_APP_IMAGE: ${{ needs.resolve.outputs.app_image }}
+          DEPLOY_API: ${{ needs.resolve.outputs.deploy_api }}
+          DEPLOY_PUBLIC: ${{ needs.resolve.outputs.deploy_public }}
+          DEPLOY_APP: ${{ needs.resolve.outputs.deploy_app }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ steps.ssh_ports.outputs.fallback }}
+          timeout: 90s
+          command_timeout: 30m
+          envs: DEPLOY_SHA,DEPLOY_REPO_SLUG,NG_API_IMAGE,NG_PUBLIC_IMAGE,NG_APP_IMAGE,DEPLOY_API,DEPLOY_PUBLIC,DEPLOY_APP,GHCR_USERNAME,GHCR_TOKEN
+          script: |
+            set -euo pipefail
+            REPO_DIR="$HOME/apps/shasvata"
+            mkdir -p "$(dirname "$REPO_DIR")"
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              git clone "git@github.com:${DEPLOY_REPO_SLUG}.git" "$REPO_DIR"
+            fi
+            cd "$REPO_DIR"
+            git remote set-url origin "git@github.com:${DEPLOY_REPO_SLUG}.git"
+            git config core.sshCommand 'ssh -i ~/.ssh/id_github_naya -o IdentitiesOnly=yes -o StrictHostKeyChecking=no'
+            dirty_worktree=0
+            if ! git diff --quiet; then dirty_worktree=1; fi
+            if ! git diff --cached --quiet; then dirty_worktree=1; fi
+            if [ -n "$(git ls-files --others --exclude-standard)" ]; then dirty_worktree=1; fi
+            if [ "$dirty_worktree" -eq 1 ]; then
+              git stash push --include-untracked --message "ci-bootstrap-$(date -u +%Y%m%dT%H%M%SZ)" || true
+            fi
+            git fetch --prune origin main
+            if ! git cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null; then
+              git fetch --depth=1 origin "$DEPLOY_SHA"
+            fi
+            git cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null
+            if [ "$(git rev-parse HEAD)" != "$(git rev-parse "$DEPLOY_SHA")" ]; then
+              git branch "backup/predeploy-$(date -u +%Y%m%dT%H%M%SZ)-$(git rev-parse --short HEAD)" || true
+            fi
+            git checkout -B main "$DEPLOY_SHA"
+            git reset --hard "$DEPLOY_SHA"
+            git clean -fdx -e .env -e .env.* -e .env.bak* -e 'docker-compose*.yml.bak*'
+            chmod +x scripts/deploy/deploy_main.sh || true
+            export DEPLOY_SKIP_GIT_SYNC=true
+            export NG_API_IMAGE NG_PUBLIC_IMAGE NG_APP_IMAGE
+            bash scripts/deploy/deploy_main.sh "$REPO_DIR"
+
+      - name: Resolve deploy transport result
+        if: ${{ always() }}
+        id: deploy_result
+        shell: bash
+        env:
+          PRIMARY_OUTCOME: ${{ steps.deploy_primary.outcome }}
+          FALLBACK_OUTCOME: ${{ steps.deploy_fallback.outcome }}
+        run: |
+          set -euo pipefail
+          primary="${PRIMARY_OUTCOME:-}"
+          fallback="${FALLBACK_OUTCOME:-}"
+          if [ "$primary" = "success" ] || [ "$fallback" = "success" ]; then
+            echo "succeeded=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "succeeded=false" >> "$GITHUB_OUTPUT"
+          echo "Primary SSH outcome: ${primary:-missing}" >&2
+          echo "Fallback SSH outcome: ${fallback:-missing}" >&2
+
+      - name: Fail if deploy transport never succeeded
+        if: ${{ steps.deploy_result.outputs.succeeded != 'true' }}
+        shell: bash
+        run: |
+          echo "Primary and fallback SSH catch-up deploy attempts failed." >&2
+          exit 1
+
+      - name: Post-deploy smoke checks
+        env:
+          DEPLOY_API: ${{ needs.resolve.outputs.deploy_api }}
+          DEPLOY_PUBLIC: ${{ needs.resolve.outputs.deploy_public }}
+          DEPLOY_APP: ${{ needs.resolve.outputs.deploy_app }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import time
+          import urllib.request
+
+          probes = []
+          if os.environ.get("DEPLOY_API") == "true":
+              probes.append({"label": "api", "urls": ["https://api.shasvata.com/health"], "expected": {200}, "mode": "all"})
+          if os.environ.get("DEPLOY_PUBLIC") == "true":
+              probes.append({"label": "public", "urls": ["https://shasvata.com/"], "expected": {200}, "mode": "all"})
+          if os.environ.get("DEPLOY_APP") == "true":
+              probes.append({"label": "app", "urls": ["https://app.shasvata.com/"], "expected": {200, 307}, "mode": "all"})
+          if not probes:
+              print("[SMOKE][SKIP] No deploy surfaces selected.")
+              raise SystemExit(0)
+
+          last_error = None
+          for attempt in range(1, 25):
+              ok = True
+              for probe in probes:
+                  successes = 0
+                  for url in probe["urls"]:
+                      try:
+                          with urllib.request.urlopen(url, timeout=10) as response:
+                              if response.status in probe["expected"]:
+                                  print(f"[SMOKE][PASS] {probe['label']} {url} -> {response.status}")
+                                  successes += 1
+                              else:
+                                  last_error = f"{probe['label']} {url} returned {response.status}"
+                      except Exception as exc:
+                          last_error = f"{probe['label']} GET {url} failed: {exc}"
+                  if probe["mode"] == "all" and successes != len(probe["urls"]):
+                      ok = False
+              if ok:
+                  raise SystemExit(0)
+              print(f"Health check attempt {attempt}/24 failed; retrying in 5s...")
+              time.sleep(5)
+          raise SystemExit(f"[SMOKE][FAIL] {last_error}")
+          PY

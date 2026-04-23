@@ -1,0 +1,23 @@
+# Shasvata — Production override (GHCR images)
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  api:
+    image: ${NG_API_IMAGE:?NG_API_IMAGE is required}
+    pull_policy: always
+    build: !reset null
+
+  web-public:
+    image: ${NG_PUBLIC_IMAGE:?NG_PUBLIC_IMAGE is required}
+    pull_policy: always
+    build: !reset null
+
+  web-app:
+    image: ${NG_APP_IMAGE:?NG_APP_IMAGE is required}
+    pull_policy: always
+    build: !reset null
+
+  iccaa-web:
+    image: ${NG_ICCAA_IMAGE:?NG_ICCAA_IMAGE is required}
+    pull_policy: always
+    build: !reset null

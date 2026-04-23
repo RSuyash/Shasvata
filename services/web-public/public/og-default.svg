@@ -1,0 +1,32 @@
+<!-- 
+  Production: Replace this with a real 1200x630 PNG rendered from your brand assets.
+  You can generate it at: vercel.com/docs/concepts/functions/edge-functions/og-image-generation
+  or use a static PNG exported from Figma.
+  
+  Filename: /public/og-default.png  (replace this file with actual PNG)
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#0A0F1A"/>
+  <!-- Grid lines -->
+  <defs>
+    <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M 60 0 L 0 0 0 60" fill="none" stroke="#0EA5E9" stroke-width="0.3" opacity="0.15"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+  <!-- Glow -->
+  <circle cx="200" cy="200" r="300" fill="#0EA5E9" opacity="0.05"/>
+  <circle cx="1000" cy="500" r="250" fill="#0F3460" opacity="0.3"/>
+  <!-- Logo mark -->
+  <rect x="80" y="80" width="56" height="56" rx="12" fill="#0F3460"/>
+  <path d="M92 124V100h6l14.5 18V100H124v24h-6L103.5 106V124H92z" fill="#0EA5E9"/>
+  <!-- Company name -->
+  <text x="152" y="120" font-family="system-ui, sans-serif" font-weight="700" font-size="28" fill="white">Naya Growth</text>
+  <!-- Headline -->
+  <text x="80" y="310" font-family="system-ui, sans-serif" font-weight="800" font-size="72" fill="white">Growth Infrastructure</text>
+  <text x="80" y="400" font-family="system-ui, sans-serif" font-weight="800" font-size="72" fill="#0EA5E9">for Modern Businesses</text>
+  <!-- Subline -->
+  <text x="80" y="470" font-family="system-ui, sans-serif" font-weight="400" font-size="28" fill="#94a3b8">Strategy · Systems · Automation · AI</text>
+  <!-- URL -->
+  <text x="80" y="570" font-family="system-ui, sans-serif" font-weight="500" font-size="22" fill="#475569">nayagrowth.com</text>
+</svg>

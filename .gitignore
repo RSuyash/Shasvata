@@ -1,8 +1,56 @@
+# Security — NEVER COMMIT
+.env
+.env.local
+.env.*.local
+acme.json
+
+# Dependencies
 node_modules/
-build/
+
+# Build outputs
+.next/
 dist/
+build/
+out/
+.turbo/
+*.tsbuildinfo
+
+# Testing
 coverage/
+.nyc_output/
+
+# OS
 .DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+docker-compose.override.yml
+
+# AI tool folders
+.claude/
+.codex/
+.cursor/
+.gemini/
+.worktrees/
+worktrees/
+
+# Logs
 *.log
-.env*
-!.env.example
+npm-debug.log*
+
+# Secrets / keys
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Unrelated sub-projects
+Estate-Autopilots/
+
+# Legacy web-app folder (migrated to services/)
+/web-app/

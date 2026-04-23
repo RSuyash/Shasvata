@@ -1,0 +1,179 @@
+# Shasvata — Base Docker Compose
+# Production: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Local dev:  docker compose up --build
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: shasvata-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB must be set}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER must be set}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - shasvata_internal_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?POSTGRES_USER must be set} -d ${POSTGRES_DB:?POSTGRES_DB must be set}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  api:
+    build: ./services/api
+    container_name: shasvata-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
+    networks:
+      - shasvata_internal_net
+      - proxy_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_net"
+      - "traefik.http.routers.shasvata-api.rule=Host(`api.shasvata.com`)"
+      - "traefik.http.routers.shasvata-api.entrypoints=websecure"
+      - "traefik.http.routers.shasvata-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.shasvata-api.loadbalancer.server.port=3001"
+      # Keep edge CORS in sync with app mutations so browser preflights reach the API.
+      - "traefik.http.middlewares.shasvata-api-cors.headers.accesscontrolallowmethods=GET,POST,PUT,PATCH,DELETE,OPTIONS"
+      - "traefik.http.middlewares.shasvata-api-cors.headers.accesscontrolallowheaders=Content-Type,Authorization"
+      - "traefik.http.middlewares.shasvata-api-cors.headers.accesscontrolalloworiginlist=https://shasvata.com,https://www.shasvata.com,https://app.shasvata.com"
+      - "traefik.http.middlewares.shasvata-api-cors.headers.accesscontrolallowcredentials=true"
+      - "traefik.http.middlewares.shasvata-api-cors.headers.accesscontrolmaxage=100"
+      - "traefik.http.middlewares.shasvata-api-cors.headers.addvaryheader=true"
+      - "traefik.http.routers.shasvata-api.middlewares=shasvata-api-cors"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  web-public:
+    build: ./services/web-public
+    container_name: shasvata-web-public
+    restart: unless-stopped
+    environment:
+      - API_URL=${API_URL:-http://shasvata-api:3001}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://api.shasvata.com}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-https://shasvata.com/app}
+      - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
+    networks:
+      - shasvata_internal_net
+      - proxy_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_net"
+      - "traefik.http.routers.shasvata-web-public.rule=Host(`shasvata.com`) || Host(`www.shasvata.com`)"
+      - "traefik.http.routers.shasvata-web-public.entrypoints=websecure"
+      - "traefik.http.routers.shasvata-web-public.tls.certresolver=letsencrypt"
+      - "traefik.http.services.shasvata-web-public.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.shasvata-web-public-security.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.shasvata-web-public-security.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.shasvata-web-public-security.headers.stsPreload=true"
+      - "traefik.http.middlewares.shasvata-web-public-security.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.shasvata-web-public-security.headers.frameDeny=true"
+      - "traefik.http.middlewares.shasvata-web-public-security.headers.referrerPolicy=strict-origin-when-cross-origin"
+      # www -> non-www redirect
+      - "traefik.http.middlewares.shasvata-www-redirect.redirectregex.regex=^https://www\\.shasvata\\.com/(.*)"
+      - "traefik.http.middlewares.shasvata-www-redirect.redirectregex.replacement=https://shasvata.com/$${1}"
+      - "traefik.http.middlewares.shasvata-www-redirect.redirectregex.permanent=true"
+      - "traefik.http.routers.shasvata-web-public.middlewares=shasvata-www-redirect,shasvata-web-public-security"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  web-app:
+    build: ./services/web-app
+    container_name: shasvata-web-app
+    restart: unless-stopped
+    environment:
+      - API_URL=${API_URL:-http://shasvata-api:3001}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://api.shasvata.com}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-https://shasvata.com/app}
+      - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
+    networks:
+      - shasvata_internal_net
+      - proxy_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_net"
+      - "traefik.http.routers.shasvata-web-app.rule=Host(`app.shasvata.com`) || (Host(`shasvata.com`) && PathPrefix(`/app`))"
+      - "traefik.http.routers.shasvata-web-app.entrypoints=websecure"
+      - "traefik.http.routers.shasvata-web-app.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.shasvata-web-app.priority=200"
+      - "traefik.http.services.shasvata-web-app.loadbalancer.server.port=3002"
+      - "traefik.http.middlewares.shasvata-web-app-security.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.shasvata-web-app-security.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.shasvata-web-app-security.headers.stsPreload=true"
+      - "traefik.http.middlewares.shasvata-web-app-security.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.shasvata-web-app-security.headers.frameDeny=true"
+      - "traefik.http.middlewares.shasvata-web-app-security.headers.referrerPolicy=strict-origin-when-cross-origin"
+      - "traefik.http.routers.shasvata-web-app.middlewares=shasvata-web-app-security"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3002/app/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  iccaa-web:
+    build: ./services/iccaa-web
+    container_name: shasvata-iccaa-web
+    restart: unless-stopped
+    networks:
+      - proxy_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_net"
+      - "traefik.http.routers.shasvata-iccaa.rule=Host(`iccaa.shasvata.com`)"
+      - "traefik.http.routers.shasvata-iccaa.entrypoints=websecure"
+      - "traefik.http.routers.shasvata-iccaa.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.shasvata-iccaa.middlewares=shasvata-web-public-security"
+      - "traefik.http.services.shasvata-iccaa.loadbalancer.server.port=8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  shasvata_internal_net:
+    driver: bridge
+  proxy_net:
+    external: true
+
+volumes:
+  postgres_data:

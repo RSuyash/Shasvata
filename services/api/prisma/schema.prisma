@@ -1,0 +1,1284 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LeadStatus {
+  RECEIVED
+  NOTIFIED
+  NOTIFICATION_FAILED
+}
+
+enum ServiceDomain {
+  MARKETING
+  TECH
+  ADVISORY
+}
+
+enum ServiceNodeKind {
+  DOMAIN
+  CATEGORY
+  SERVICE
+  CAPABILITY
+}
+
+enum ServiceEdgeKind {
+  CONTAINS
+  RELATED_TO
+  REQUIRES
+  SUPPORTS
+}
+
+enum CommerceItemKind {
+  PACKAGE
+  ADDON
+  QUOTE_ONLY
+}
+
+enum CommerceCheckoutMode {
+  INSTANT
+  QUOTE_ONLY
+}
+
+enum CommerceBillingModel {
+  FULL
+  ADVANCE
+}
+
+enum CommerceFlowMode {
+  SELF_SERVE
+  QUOTE_REQUEST
+}
+
+enum CartStatus {
+  ACTIVE
+  QUOTE_REQUESTED
+  CHECKOUT_READY
+  CHECKOUT_PENDING
+  PAID
+  EXPIRED
+  CANCELLED
+}
+
+enum QuoteRequestStatus {
+  SUBMITTED
+  ERP_SYNCED
+  PRICED
+  CLOSED
+}
+
+enum CheckoutSessionStatus {
+  CREATED
+  ACTION_REQUIRED
+  PAID
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+enum PaymentProvider {
+  CASHFREE
+}
+
+enum CashfreeEnvironment {
+  MOCK
+  SANDBOX
+  PRODUCTION
+}
+
+enum PaymentAttemptStatus {
+  INITIATED
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+enum WebhookEventStatus {
+  RECEIVED
+  VERIFIED
+  REJECTED
+  PROCESSED
+  FAILED
+}
+
+enum PortalUserStatus {
+  PENDING
+  ACTIVE
+}
+
+enum PortalUserRole {
+  PLATFORM_ADMIN
+  PLATFORM_OPERATOR
+  CLIENT
+}
+
+enum AuthCredentialKind {
+  PASSWORD
+  MAGIC_LINK_ONLY
+  GOOGLE_OIDC
+  PASSWORD_AND_GOOGLE
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum ProjectMembershipRole {
+  OWNER
+  VIEWER
+}
+
+enum ProjectSitePublishStatus {
+  DRAFT
+  PUBLISHED
+  FAILED
+}
+
+enum ProjectSiteSourceProvider {
+  GIT_REPOSITORY
+}
+
+enum ProjectSiteRuntimeProfile {
+  STATIC_ARTIFACT
+  ISOLATED_APP
+}
+
+enum GoogleAdsConversionMode {
+  DIRECT_LABEL
+  GA4_IMPORTED
+}
+
+enum ProjectDomainStatus {
+  PENDING
+  ACTIVE
+  ERROR
+}
+
+enum LeadSyncTargetKind {
+  GOOGLE_SHEETS
+  MDOC_PUSH
+}
+
+enum LeadSyncTargetStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ProjectLeadSyncStatus {
+  PENDING
+  SYNCED
+  PARTIAL
+  FAILED
+}
+
+enum LeadSyncDeliveryStatus {
+  PENDING
+  SYNCED
+  FAILED
+}
+
+enum ProjectLeadVisibilityState {
+  VISIBLE
+  HIDDEN
+}
+
+enum LeadSourceKind {
+  WEB_FORM
+  MANUAL_ENTRY
+  EVENT_IMPORT
+  CSV_IMPORT
+  META_LEAD_ADS
+  LINKEDIN_LEAD_GEN
+  GOOGLE_ADS
+}
+
+enum LeadSourceConnectorStatus {
+  ACTIVE
+  INACTIVE
+  NEEDS_AUTH
+  ERROR
+}
+
+enum IntegrationCredentialProvider {
+  META
+  LINKEDIN
+  GOOGLE_ADS
+}
+
+enum IntegrationCredentialStatus {
+  ACTIVE
+  NEEDS_AUTH
+  REVOKED
+  ERROR
+}
+
+enum LeadImportBatchStatus {
+  PENDING
+  IMPORTED
+  PARTIAL
+  FAILED
+}
+
+enum InboundLeadEventStatus {
+  RECEIVED
+  PROCESSED
+  SKIPPED
+  FAILED
+}
+
+enum ProjectLeadAuditEventType {
+  SOFT_DELETED
+  RESTORED
+  PII_REVEALED
+  HARD_DELETED
+}
+
+enum ProjectInviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+enum ProjectEventType {
+  PUBLISH_REQUESTED
+  PUBLISHED
+  PUBLISH_FAILED
+  DOMAIN_ADDED
+  DOMAIN_VERIFIED
+  ONBOARDING_SUBMITTED
+}
+
+enum ErpSyncStatus {
+  PENDING
+  SYNCED
+  FAILED
+}
+
+enum ProjectBillingMode {
+  CATALOG
+  NEGOTIATED
+  PROMO_ACTIVE
+  HYBRID
+}
+
+enum ProjectBillingPaymentMode {
+  DEPOSIT
+  FULL
+}
+
+enum CommercialOfferScopeType {
+  GLOBAL
+  PROJECT
+  SKU
+  CLIENT_SEGMENT
+  CHECKOUT
+}
+
+enum CommercialOfferDiscountType {
+  PERCENT
+  FIXED_MINOR
+  DEPOSIT_OVERRIDE
+  PAY_NOW_INCENTIVE
+  BUNDLE
+}
+
+enum CommercialOfferStackingMode {
+  EXCLUSIVE
+  STACKABLE
+  BEST_OF
+}
+
+enum BillingSnapshotSourceType {
+  CART
+  OPERATOR_QUOTE
+  PROMO_PREVIEW
+  PROJECT_PLAN
+}
+
+enum BillingSnapshotStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  SUPERSEDED
+  SYNCED_TO_ERP
+}
+
+enum ProjectOnboardingStatus {
+  DRAFT
+  SUBMITTED
+  CONVERTED
+}
+
+model LeadSubmission {
+  id                 String       @id @default(cuid())
+  leadId             String       @unique
+  fullName           String
+  email              String
+  phone              String?
+  companyName        String
+  companyType        String
+  websiteUrl         String?
+  serviceInterest    Json
+  budgetRange        String
+  timeline           String
+  problemSummary     String
+  consent            Boolean      @default(true)
+  sourcePage         String?
+  sourceCta          String?
+  utmSource          String?
+  utmMedium          String?
+  utmCampaign        String?
+  payload            Json
+  notificationStatus LeadStatus   @default(RECEIVED)
+  notificationError  String?
+  projectedLead      ProjectLead?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([email])
+  @@index([companyName])
+  @@index([createdAt])
+}
+
+model ServiceTaxonomyNode {
+  id            String                @id
+  slug          String                @unique
+  label         String
+  description   String?
+  summary       String?
+  route         String?
+  icon          String?
+  domain        ServiceDomain
+  kind          ServiceNodeKind
+  sortOrder     Int                   @default(0)
+  isFeatured    Boolean               @default(false)
+  parentId      String?
+  parent        ServiceTaxonomyNode?  @relation("ServiceTaxonomyHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children      ServiceTaxonomyNode[] @relation("ServiceTaxonomyHierarchy")
+  outboundEdges ServiceTaxonomyEdge[] @relation("TaxonomyEdgeSource")
+  inboundEdges  ServiceTaxonomyEdge[] @relation("TaxonomyEdgeTarget")
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@index([domain, kind])
+  @@index([parentId, sortOrder])
+}
+
+model ServiceTaxonomyEdge {
+  id        String              @id @default(cuid())
+  sourceId  String
+  targetId  String
+  kind      ServiceEdgeKind
+  weight    Int                 @default(1)
+  note      String?
+  source    ServiceTaxonomyNode @relation("TaxonomyEdgeSource", fields: [sourceId], references: [id], onDelete: Cascade)
+  target    ServiceTaxonomyNode @relation("TaxonomyEdgeTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  createdAt DateTime            @default(now())
+
+  @@unique([sourceId, targetId, kind])
+  @@index([kind])
+}
+
+model PortalUser {
+  id                            String                         @id @default(cuid())
+  email                         String                         @unique
+  fullName                      String?
+  companyName                   String?
+  phone                         String?
+  role                          PortalUserRole                 @default(CLIENT)
+  status                        PortalUserStatus               @default(PENDING)
+  emailVerifiedAt               DateTime?
+  authCredential                AuthCredential?
+  customerLink                  CustomerLink?
+  carts                         Cart[]
+  emailVerificationTokens       EmailVerificationToken[]
+  passwordResetTokens           PasswordResetToken[]
+  projectMemberships            ProjectMembership[]
+  hiddenProjectLeads            ProjectLead[]                  @relation("ProjectLeadHiddenBy")
+  restoredProjectLeads          ProjectLead[]                  @relation("ProjectLeadRestoredBy")
+  projectLeadAuditEvents        ProjectLeadAuditEvent[]        @relation("ProjectLeadAuditActor")
+  projectLeadDeletionTombstones ProjectLeadDeletionTombstone[] @relation("ProjectLeadDeletionTombstoneActor")
+  createdProjectInvites         ProjectInvite[]                @relation("ProjectInviteCreatedBy")
+  acceptedProjectInvites        ProjectInvite[]                @relation("ProjectInviteAcceptedBy")
+  ownedBillingConfigs           ProjectBillingConfig[]         @relation("ProjectBillingCommercialOwner")
+  portalMagicLinks              PortalMagicLink[]
+  portalSessions                PortalSession[]
+  projectEvents                 ProjectEvent[]
+  projectOnboardingSessions     ProjectOnboardingSession[]
+  approvedBillingSnapshots      BillingSnapshot[]              @relation("BillingSnapshotApprovedBy")
+  createdAt                     DateTime                       @default(now())
+  updatedAt                     DateTime                       @updatedAt
+
+  @@index([status, createdAt])
+  @@index([role, status])
+}
+
+model AuthCredential {
+  portalUserId      String             @id
+  kind              AuthCredentialKind @default(MAGIC_LINK_ONLY)
+  passwordHash      String?
+  passwordUpdatedAt DateTime?
+  googleSubject     String?            @unique
+  googleEmail       String?
+  portalUser        PortalUser         @relation(fields: [portalUserId], references: [id], onDelete: Cascade)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([kind, updatedAt])
+}
+
+model EmailVerificationToken {
+  id           String     @id @default(cuid())
+  portalUserId String
+  email        String
+  selector     String     @unique
+  verifierHash String
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  portalUser   PortalUser @relation(fields: [portalUserId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@index([portalUserId, expiresAt])
+  @@index([email, expiresAt])
+}
+
+model PasswordResetToken {
+  id           String     @id @default(cuid())
+  portalUserId String
+  selector     String     @unique
+  verifierHash String
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  portalUser   PortalUser @relation(fields: [portalUserId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@index([portalUserId, expiresAt])
+}
+
+model CustomerLink {
+  id              String     @id @default(cuid())
+  portalUserId    String     @unique
+  portalUser      PortalUser @relation(fields: [portalUserId], references: [id], onDelete: Cascade)
+  erpCustomerId   String?
+  erpContactId    String?
+  erpPortalUserId String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+model Project {
+  id                       String                         @id @default(cuid())
+  slug                     String                         @unique
+  name                     String
+  description              String?
+  clientCompanyName        String?
+  status                   ProjectStatus                  @default(DRAFT)
+  publicLeadKey            String                         @unique
+  primaryDomain            String?
+  notes                    String?
+  goLiveAt                 DateTime?
+  sites                    ProjectSite[]
+  domains                  ProjectDomain[]
+  memberships              ProjectMembership[]
+  notificationRecipients   ProjectNotificationRecipient[]
+  billingConfig            ProjectBillingConfig?
+  billingContacts          ProjectBillingContact[]
+  billingSnapshots         BillingSnapshot[]
+  onboardingSession        ProjectOnboardingSession?
+  offerPolicies            CommercialOfferPolicy[]        @relation("ProjectScopedOfferPolicies")
+  leads                    ProjectLead[]
+  leadAuditEvents          ProjectLeadAuditEvent[]
+  leadDeletionTombstones   ProjectLeadDeletionTombstone[]
+  leadSyncDeliveryAttempts LeadSyncDeliveryAttempt[]
+  invites                  ProjectInvite[]
+  syncTargets              LeadSyncTarget[]
+  leadSourceConnectors     LeadSourceConnector[]
+  integrationCredentials   IntegrationCredential[]
+  acquisitionAccounts      AcquisitionAccount[]
+  acquisitionCampaigns     AcquisitionCampaign[]
+  leadImportBatches        LeadImportBatch[]
+  inboundLeadEvents        InboundLeadEvent[]
+  events                   ProjectEvent[]
+  createdAt                DateTime                       @default(now())
+  updatedAt                DateTime                       @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model ProjectBillingConfig {
+  id                    String                    @id @default(cuid())
+  projectId             String                    @unique
+  billingMode           ProjectBillingMode        @default(HYBRID)
+  currency              String                    @default("INR")
+  allowCoupons          Boolean                   @default(true)
+  allowReferral         Boolean                   @default(true)
+  allowOperatorOverride Boolean                   @default(true)
+  defaultDepositPercent Int?                      @default(50)
+  defaultPaymentMode    ProjectBillingPaymentMode @default(DEPOSIT)
+  erpCustomerId         String?
+  commercialOwnerUserId String?
+  billingPhone          String?
+  notes                 String?
+  project               Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  commercialOwner       PortalUser?               @relation("ProjectBillingCommercialOwner", fields: [commercialOwnerUserId], references: [id], onDelete: SetNull)
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+
+  @@index([billingMode, updatedAt])
+}
+
+model ProjectBillingContact {
+  id        String   @id @default(cuid())
+  projectId String
+  email     String
+  label     String?
+  isActive  Boolean  @default(true)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, email])
+  @@index([projectId, isActive])
+}
+
+model CommercialOfferPolicy {
+  id                       String                      @id @default(cuid())
+  code                     String                      @unique
+  label                    String
+  scopeType                CommercialOfferScopeType
+  scopeProjectId           String?
+  discountType             CommercialOfferDiscountType
+  discountValue            Int
+  couponCode               String?
+  referralCode             String?
+  stackingMode             CommercialOfferStackingMode @default(EXCLUSIVE)
+  minSubtotalMinor         Int?
+  maxDiscountMinor         Int?
+  validFrom                DateTime?
+  validUntil               DateTime?
+  usageLimit               Int?
+  requiresOperatorApproval Boolean                     @default(false)
+  marketingLabel           String?
+  internalReason           String?
+  isActive                 Boolean                     @default(true)
+  scopeProject             Project?                    @relation("ProjectScopedOfferPolicies", fields: [scopeProjectId], references: [id], onDelete: Cascade)
+  createdAt                DateTime                    @default(now())
+  updatedAt                DateTime                    @updatedAt
+
+  @@index([scopeType, isActive, updatedAt])
+  @@index([scopeProjectId, isActive])
+  @@index([couponCode, isActive])
+  @@index([referralCode, isActive])
+}
+
+model ProjectMembership {
+  id           String                @id @default(cuid())
+  projectId    String
+  portalUserId String
+  role         ProjectMembershipRole
+  project      Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  portalUser   PortalUser            @relation(fields: [portalUserId], references: [id], onDelete: Cascade)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  @@unique([projectId, portalUserId])
+  @@index([portalUserId, role])
+}
+
+model ProjectNotificationRecipient {
+  id        String   @id @default(cuid())
+  projectId String
+  email     String
+  label     String?
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, email])
+  @@index([projectId, createdAt])
+}
+
+model ProjectSite {
+  id                           String                     @id @default(cuid())
+  projectId                    String
+  slug                         String                     @unique
+  templateKey                  String
+  themeKey                     String?
+  sourceProvider               ProjectSiteSourceProvider?
+  repoUrl                      String?
+  repoBranch                   String?
+  repoRef                      String?
+  deployedCommit               String?
+  runtimeProfile               ProjectSiteRuntimeProfile  @default(STATIC_ARTIFACT)
+  operatorNotes                String?
+  ga4MeasurementId             String?
+  googleAdsTagId               String?
+  googleAdsConversionMode      GoogleAdsConversionMode    @default(DIRECT_LABEL)
+  googleAdsLeadConversionLabel String?
+  gtmContainerId               String?
+  metaPixelId                  String?
+  trackingNotes                String?
+  publishStatus                ProjectSitePublishStatus   @default(DRAFT)
+  contentConfig                Json
+  formConfig                   Json?
+  lastPublishedAt              DateTime?
+  previewHost                  String?                    @unique
+  latestPreviewPath            String?
+  project                      Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  domains                      ProjectDomain[]
+  events                       ProjectEvent[]
+  createdAt                    DateTime                   @default(now())
+  updatedAt                    DateTime                   @updatedAt
+
+  @@index([projectId, publishStatus])
+}
+
+model ProjectDomain {
+  id         String              @id @default(cuid())
+  projectId  String
+  siteId     String?
+  host       String              @unique
+  status     ProjectDomainStatus @default(PENDING)
+  isPrimary  Boolean             @default(false)
+  dnsTarget  String?
+  verifiedAt DateTime?
+  project    Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  site       ProjectSite?        @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  @@index([projectId, status])
+}
+
+model ProjectLead {
+  id                         String                     @id @default(cuid())
+  projectId                  String
+  sourceSubmissionId         String?                    @unique
+  fullName                   String
+  email                      String
+  phone                      String?
+  companyName                String?
+  message                    String?
+  consent                    Boolean                    @default(true)
+  payload                    Json
+  originHost                 String?
+  sourceKind                 LeadSourceKind             @default(WEB_FORM)
+  connectorId                String?
+  campaignId                 String?
+  importBatchId              String?
+  externalLeadId             String?
+  capturedAt                 DateTime?
+  syncStatus                 ProjectLeadSyncStatus      @default(PENDING)
+  syncError                  String?
+  visibilityState            ProjectLeadVisibilityState @default(VISIBLE)
+  hiddenAt                   DateTime?
+  hiddenByPortalUserId       String?
+  hiddenReasonCode           String?
+  hiddenReasonNote           String?
+  lastRestoredAt             DateTime?
+  lastRestoredByPortalUserId String?
+  project                    Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceSubmission           LeadSubmission?            @relation(fields: [sourceSubmissionId], references: [id], onDelete: SetNull)
+  sourceConnector            LeadSourceConnector?       @relation(fields: [connectorId], references: [id], onDelete: SetNull)
+  acquisitionCampaign        AcquisitionCampaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  importBatch                LeadImportBatch?           @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  hiddenByPortalUser         PortalUser?                @relation("ProjectLeadHiddenBy", fields: [hiddenByPortalUserId], references: [id], onDelete: SetNull)
+  lastRestoredByPortalUser   PortalUser?                @relation("ProjectLeadRestoredBy", fields: [lastRestoredByPortalUserId], references: [id], onDelete: SetNull)
+  auditEvents                ProjectLeadAuditEvent[]
+  deliveryAttempts           LeadSyncDeliveryAttempt[]
+  inboundEvents              InboundLeadEvent[]
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @updatedAt
+
+  @@index([projectId, createdAt])
+  @@index([projectId, visibilityState, createdAt])
+  @@index([projectId, sourceKind, createdAt])
+  @@index([connectorId])
+  @@index([campaignId])
+  @@index([importBatchId])
+  @@index([externalLeadId])
+  @@index([hiddenByPortalUserId])
+  @@index([lastRestoredByPortalUserId])
+  @@index([email, createdAt])
+}
+
+model IntegrationCredential {
+  id               String                        @id @default(cuid())
+  projectId        String
+  provider         IntegrationCredentialProvider
+  status           IntegrationCredentialStatus   @default(NEEDS_AUTH)
+  label            String
+  encryptedPayload String?
+  keyVersion       String                        @default("v1")
+  scopes           Json?
+  expiresAt        DateTime?
+  metadata         Json?
+  project          Project                       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  connectors       LeadSourceConnector[]
+  createdAt        DateTime                      @default(now())
+  updatedAt        DateTime                      @updatedAt
+
+  @@index([projectId, provider, status])
+}
+
+model LeadSourceConnector {
+  id                String                    @id @default(cuid())
+  projectId         String
+  kind              LeadSourceKind
+  status            LeadSourceConnectorStatus @default(NEEDS_AUTH)
+  label             String
+  credentialId      String?
+  externalAccountId String?
+  config            Json?
+  metadata          Json?
+  lastCheckedAt     DateTime?
+  lastSyncAt        DateTime?
+  lastError         String?
+  project           Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  credential        IntegrationCredential?    @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+  accounts          AcquisitionAccount[]
+  campaigns         AcquisitionCampaign[]
+  importBatches     LeadImportBatch[]
+  inboundEvents     InboundLeadEvent[]
+  leads             ProjectLead[]
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@index([projectId, kind, status])
+  @@index([credentialId])
+}
+
+model AcquisitionAccount {
+  id                String                @id @default(cuid())
+  projectId         String
+  connectorId       String?
+  provider          LeadSourceKind
+  externalAccountId String?
+  name              String
+  status            String?
+  config            Json?
+  metadata          Json?
+  project           Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  connector         LeadSourceConnector?  @relation(fields: [connectorId], references: [id], onDelete: SetNull)
+  campaigns         AcquisitionCampaign[]
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  @@unique([projectId, provider, externalAccountId])
+  @@index([projectId, provider])
+  @@index([connectorId])
+}
+
+model AcquisitionCampaign {
+  id                 String               @id @default(cuid())
+  projectId          String
+  connectorId        String?
+  accountId          String?
+  provider           LeadSourceKind
+  externalCampaignId String?
+  name               String
+  status             String?
+  utmSource          String?
+  utmMedium          String?
+  utmCampaign        String?
+  metadata           Json?
+  project            Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  connector          LeadSourceConnector? @relation(fields: [connectorId], references: [id], onDelete: SetNull)
+  account            AcquisitionAccount?  @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  leads              ProjectLead[]
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@unique([projectId, provider, externalCampaignId])
+  @@index([projectId, provider])
+  @@index([projectId, utmSource, utmCampaign])
+  @@index([connectorId])
+  @@index([accountId])
+}
+
+model LeadImportBatch {
+  id              String                @id @default(cuid())
+  projectId       String
+  connectorId     String?
+  sourceKind      LeadSourceKind
+  status          LeadImportBatchStatus @default(PENDING)
+  label           String?
+  filename        String?
+  totalRows       Int                   @default(0)
+  importedRows    Int                   @default(0)
+  failedRows      Int                   @default(0)
+  fieldMapping    Json?
+  errorSummary    String?
+  createdByUserId String?
+  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  connector       LeadSourceConnector?  @relation(fields: [connectorId], references: [id], onDelete: SetNull)
+  leads           ProjectLead[]
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@index([projectId, sourceKind, createdAt])
+  @@index([connectorId])
+  @@index([createdByUserId])
+}
+
+model InboundLeadEvent {
+  id             String                 @id @default(cuid())
+  projectId      String?
+  connectorId    String?
+  provider       LeadSourceKind
+  eventType      String
+  externalLeadId String?
+  payload        Json
+  status         InboundLeadEventStatus @default(RECEIVED)
+  errorMessage   String?
+  receivedAt     DateTime               @default(now())
+  processedAt    DateTime?
+  projectLeadId  String?
+  project        Project?               @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  connector      LeadSourceConnector?   @relation(fields: [connectorId], references: [id], onDelete: SetNull)
+  projectLead    ProjectLead?           @relation(fields: [projectLeadId], references: [id], onDelete: SetNull)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([projectId, receivedAt])
+  @@index([connectorId, receivedAt])
+  @@index([provider, externalLeadId])
+  @@index([status, receivedAt])
+  @@index([projectLeadId])
+}
+
+model ProjectLeadAuditEvent {
+  id            String                    @id @default(cuid())
+  projectId     String
+  projectLeadId String
+  actorUserId   String?
+  type          ProjectLeadAuditEventType
+  reasonCode    String?
+  note          String?
+  metadata      Json?
+  project       Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectLead   ProjectLead               @relation(fields: [projectLeadId], references: [id], onDelete: Cascade)
+  actorUser     PortalUser?               @relation("ProjectLeadAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt     DateTime                  @default(now())
+
+  @@index([projectId, type, createdAt])
+  @@index([projectLeadId, createdAt])
+  @@index([actorUserId, createdAt])
+}
+
+model ProjectLeadDeletionTombstone {
+  id                   String      @id @default(cuid())
+  projectId            String
+  deletedProjectLeadId String
+  deletedSourceLeadId  String?
+  deletedByUserId      String?
+  reasonCode           String?
+  note                 String?
+  project              Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deletedByUser        PortalUser? @relation("ProjectLeadDeletionTombstoneActor", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+  createdAt            DateTime    @default(now())
+
+  @@index([projectId, createdAt])
+  @@index([deletedByUserId, createdAt])
+}
+
+model ProjectInvite {
+  id                     String                @id @default(cuid())
+  projectId              String
+  email                  String
+  fullName               String?
+  role                   ProjectMembershipRole
+  invitedByPortalUserId  String
+  acceptedByPortalUserId String?
+  selector               String                @unique
+  verifierHash           String
+  status                 ProjectInviteStatus   @default(PENDING)
+  expiresAt              DateTime
+  acceptedAt             DateTime?
+  revokedAt              DateTime?
+  project                Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  invitedByPortalUser    PortalUser            @relation("ProjectInviteCreatedBy", fields: [invitedByPortalUserId], references: [id], onDelete: Cascade)
+  acceptedByPortalUser   PortalUser?           @relation("ProjectInviteAcceptedBy", fields: [acceptedByPortalUserId], references: [id], onDelete: SetNull)
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+
+  @@index([projectId, email, status])
+  @@index([invitedByPortalUserId, createdAt])
+  @@index([acceptedByPortalUserId, createdAt])
+}
+
+model LeadSyncTarget {
+  id               String                    @id @default(cuid())
+  projectId        String
+  kind             LeadSyncTargetKind
+  status           LeadSyncTargetStatus      @default(ACTIVE)
+  label            String?
+  config           Json
+  project          Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deliveryAttempts LeadSyncDeliveryAttempt[]
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  @@index([projectId, status])
+}
+
+model LeadSyncDeliveryAttempt {
+  id            String                 @id @default(cuid())
+  projectLeadId String
+  projectId     String
+  targetId      String
+  kind          LeadSyncTargetKind
+  status        LeadSyncDeliveryStatus @default(PENDING)
+  responseCode  Int?
+  responseBody  String?
+  errorMessage  String?
+  metadata      Json?
+  attemptedAt   DateTime               @default(now())
+  deliveredAt   DateTime?
+  projectLead   ProjectLead            @relation(fields: [projectLeadId], references: [id], onDelete: Cascade)
+  project       Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  target        LeadSyncTarget         @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  @@index([projectLeadId, attemptedAt])
+  @@index([projectId, attemptedAt])
+  @@index([targetId, attemptedAt])
+  @@index([status, attemptedAt])
+}
+
+model ProjectEvent {
+  id          String           @id @default(cuid())
+  projectId   String
+  siteId      String?
+  actorUserId String?
+  type        ProjectEventType
+  status      String?
+  payload     Json?
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  site        ProjectSite?     @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  actorUser   PortalUser?      @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt   DateTime         @default(now())
+
+  @@index([projectId, type, createdAt])
+}
+
+model PortalMagicLink {
+  id           String     @id @default(cuid())
+  portalUserId String
+  email        String
+  selector     String     @unique
+  verifierHash String
+  redirectPath String
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  portalUser   PortalUser @relation(fields: [portalUserId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@index([portalUserId, expiresAt])
+  @@index([email, expiresAt])
+}
+
+model PortalSession {
+  id           String     @id @default(cuid())
+  portalUserId String
+  expiresAt    DateTime
+  lastSeenAt   DateTime?
+  portalUser   PortalUser @relation(fields: [portalUserId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([portalUserId, expiresAt])
+}
+
+model CatalogProjection {
+  id                     String               @id @default(cuid())
+  slug                   String               @unique
+  itemCode               String               @unique
+  label                  String
+  summary                String
+  description            String?
+  domain                 ServiceDomain
+  categoryLabel          String
+  kind                   CommerceItemKind
+  checkoutMode           CommerceCheckoutMode
+  billingModel           CommerceBillingModel
+  currency               String               @default("INR")
+  basePriceMinor         Int?
+  defaultDepositPercent  Int?
+  addonParentSlug        String?
+  compatiblePackageSlugs Json?
+  portalVisible          Boolean              @default(true)
+  isFeatured             Boolean              @default(false)
+  route                  String?
+  deliveryWindow         String?
+  metadata               Json?
+  isActive               Boolean              @default(true)
+  sortOrder              Int                  @default(0)
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  @@index([domain, kind, sortOrder])
+  @@index([checkoutMode, isActive])
+}
+
+model Cart {
+  id                       String                    @id @default(cuid())
+  portalUserId             String?
+  portalUser               PortalUser?               @relation(fields: [portalUserId], references: [id], onDelete: SetNull)
+  status                   CartStatus                @default(ACTIVE)
+  flowMode                 CommerceFlowMode
+  currency                 String                    @default("INR")
+  buyerEmail               String?
+  buyerFullName            String?
+  buyerCompanyName         String?
+  buyerPhone               String?
+  couponCode               String?
+  referralCode             String?
+  notes                    String?
+  sourcePage               String?
+  sourceCta                String?
+  subtotalMinor            Int                       @default(0)
+  discountMinor            Int                       @default(0)
+  totalMinor               Int                       @default(0)
+  payableTodayMinor        Int                       @default(0)
+  remainingAfterTodayMinor Int                       @default(0)
+  pricingSnapshot          Json?
+  erpQuotationId           String?
+  erpSalesOrderId          String?
+  erpCustomerId            String?
+  erpSyncStatus            ErpSyncStatus             @default(PENDING)
+  items                    CartItem[]
+  billingSnapshots         BillingSnapshot[]
+  onboardingSession        ProjectOnboardingSession?
+  quoteRequest             QuoteRequest?
+  checkoutSessions         CheckoutSession[]
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([buyerEmail, createdAt])
+  @@index([portalUserId, status])
+}
+
+model CartItem {
+  id                       String               @id @default(cuid())
+  cartId                   String
+  cart                     Cart                 @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  catalogSlug              String
+  quantity                 Int                  @default(1)
+  label                    String
+  itemCode                 String
+  kind                     CommerceItemKind
+  checkoutMode             CommerceCheckoutMode
+  billingModel             CommerceBillingModel
+  unitPriceMinor           Int?
+  lineSubtotalMinor        Int                  @default(0)
+  lineDiscountMinor        Int                  @default(0)
+  lineTotalMinor           Int                  @default(0)
+  payableTodayMinor        Int                  @default(0)
+  remainingAfterTodayMinor Int                  @default(0)
+  metadata                 Json?
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+
+  @@index([cartId, createdAt])
+}
+
+model QuoteRequest {
+  id                   String                @id @default(cuid())
+  cartId               String                @unique
+  cart                 Cart                  @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  status               QuoteRequestStatus    @default(SUBMITTED)
+  brief                Json?
+  sourcePage           String?
+  erpLeadId            String?
+  erpOpportunityId     String?
+  erpQuotationId       String?
+  erpSyncStatus        ErpSyncStatus         @default(PENDING)
+  lastError            String?
+  billingDocumentLinks BillingDocumentLink[]
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model CheckoutSession {
+  id                   String                    @id @default(cuid())
+  cartId               String
+  cart                 Cart                      @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  status               CheckoutSessionStatus     @default(CREATED)
+  provider             PaymentProvider           @default(CASHFREE)
+  paymentSessionId     String?
+  providerOrderId      String?
+  hostedCheckoutUrl    String?
+  amountMinor          Int
+  currency             String                    @default("INR")
+  returnUrl            String?
+  cancelUrl            String?
+  expiresAt            DateTime?
+  erpSalesOrderId      String?
+  erpCustomerId        String?
+  cashfreeOrder        CashfreeOrder?
+  onboardingSession    ProjectOnboardingSession?
+  billingDocumentLinks BillingDocumentLink[]
+  paymentAttempts      PaymentAttempt[]
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+
+  @@index([cartId, status, createdAt])
+  @@index([providerOrderId])
+}
+
+model CashfreeOrder {
+  id                String              @id @default(cuid())
+  checkoutSessionId String              @unique
+  checkoutSession   CheckoutSession     @relation(fields: [checkoutSessionId], references: [id], onDelete: Cascade)
+  environment       CashfreeEnvironment @default(MOCK)
+  cfOrderId         String?
+  requestPayload    Json?
+  responsePayload   Json?
+  orderStatus       String?
+  paymentSessionId  String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+}
+
+model PaymentAttempt {
+  id                String               @id @default(cuid())
+  checkoutSessionId String
+  checkoutSession   CheckoutSession      @relation(fields: [checkoutSessionId], references: [id], onDelete: Cascade)
+  status            PaymentAttemptStatus @default(INITIATED)
+  amountMinor       Int
+  providerPaymentId String?
+  providerOrderId   String?
+  payload           Json?
+  recordedAt        DateTime             @default(now())
+
+  @@index([checkoutSessionId, recordedAt])
+  @@index([providerPaymentId])
+}
+
+model WebhookEvent {
+  id              String             @id @default(cuid())
+  provider        PaymentProvider    @default(CASHFREE)
+  externalEventId String             @unique
+  status          WebhookEventStatus @default(RECEIVED)
+  signatureValid  Boolean            @default(false)
+  headers         Json?
+  payload         Json?
+  errorMessage    String?
+  receivedAt      DateTime           @default(now())
+  processedAt     DateTime?
+
+  @@index([provider, receivedAt])
+  @@index([status, receivedAt])
+}
+
+model ErpSyncState {
+  id         String        @id @default(cuid())
+  entityType String
+  entityId   String
+  status     ErpSyncStatus @default(PENDING)
+  externalId String?
+  lastError  String?
+  payload    Json?
+  syncedAt   DateTime?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@unique([entityType, entityId])
+  @@index([status, updatedAt])
+}
+
+model BillingSnapshot {
+  id                       String                    @id @default(cuid())
+  projectId                String
+  cartId                   String?
+  sourceType               BillingSnapshotSourceType
+  status                   BillingSnapshotStatus     @default(DRAFT)
+  currency                 String                    @default("INR")
+  subtotalMinor            Int                       @default(0)
+  discountMinor            Int                       @default(0)
+  totalMinor               Int                       @default(0)
+  payableTodayMinor        Int                       @default(0)
+  remainingAfterTodayMinor Int                       @default(0)
+  offerCodeApplied         String?
+  couponCodeApplied        String?
+  referralCodeApplied      String?
+  operatorAdjustmentMinor  Int                       @default(0)
+  approvedByUserId         String?
+  approvalReason           String?
+  validUntil               DateTime?
+  snapshotJson             Json
+  project                  Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceCart               Cart?                     @relation(fields: [cartId], references: [id], onDelete: SetNull)
+  approvedBy               PortalUser?               @relation("BillingSnapshotApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  documentLink             BillingDocumentLink?
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+
+  @@index([projectId, status, updatedAt])
+  @@index([projectId, validUntil])
+  @@index([cartId, createdAt])
+}
+
+model BillingDocumentLink {
+  id                     String           @id @default(cuid())
+  billingSnapshotId      String           @unique
+  erpQuotationId         String?
+  erpSalesOrderId        String?
+  erpInvoiceId           String?
+  erpPaymentEntryIdsJson Json?
+  quoteRequestId         String?          @unique
+  checkoutSessionId      String?          @unique
+  providerOrderId        String?
+  paymentSessionId       String?
+  billingSnapshot        BillingSnapshot  @relation(fields: [billingSnapshotId], references: [id], onDelete: Cascade)
+  quoteRequest           QuoteRequest?    @relation(fields: [quoteRequestId], references: [id], onDelete: SetNull)
+  checkoutSession        CheckoutSession? @relation(fields: [checkoutSessionId], references: [id], onDelete: SetNull)
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  @@index([erpQuotationId])
+  @@index([erpSalesOrderId])
+  @@index([erpInvoiceId])
+  @@index([providerOrderId])
+}
+
+model ProjectOnboardingSession {
+  id                     String                  @id @default(cuid())
+  portalUserId           String
+  cartId                 String                  @unique
+  checkoutSessionId      String?                 @unique
+  projectId              String?                 @unique
+  status                 ProjectOnboardingStatus @default(DRAFT)
+  currency               String                  @default("INR")
+  packageSlug            String?
+  packageLabel           String?
+  buyerEmail             String?
+  buyerFullName          String?
+  buyerCompanyName       String?
+  buyerPhone             String?
+  selectedAddonSlugsJson Json?
+  intakeJson             Json?
+  lastCompletedStep      String?
+  submittedAt            DateTime?
+  portalUser             PortalUser              @relation(fields: [portalUserId], references: [id], onDelete: Cascade)
+  cart                   Cart                    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  checkoutSession        CheckoutSession?        @relation(fields: [checkoutSessionId], references: [id], onDelete: SetNull)
+  project                Project?                @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+
+  @@index([portalUserId, status, updatedAt])
+  @@index([projectId, updatedAt])
+}

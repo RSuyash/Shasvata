@@ -1,0 +1,225 @@
+name: PR Release Artifacts
+# SOP reference: docs/ops/DEVELOPMENT_WORKFLOW.md
+
+on:
+  pull_request:
+    branches: [ "main" ]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: pr-artifacts-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.pull_request.draft == false }}
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      api_changed: ${{ steps.filter.outputs.api }}
+      public_changed: ${{ steps.filter.outputs.public }}
+      app_changed: ${{ steps.filter.outputs.app }}
+      iccaa_changed: ${{ steps.filter.outputs.iccaa }}
+      owner: ${{ steps.owner.outputs.owner }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve registry owner
+        id: owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Detect changed runtime surfaces
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            api:
+              - 'services/api/**'
+              - 'docker-compose.yml'
+              - 'docker-compose.prod.yml'
+            public:
+              - 'services/web-public/**'
+              - 'docker-compose.yml'
+              - 'docker-compose.prod.yml'
+            app:
+              - 'services/web-app/**'
+              - 'docker-compose.yml'
+              - 'docker-compose.prod.yml'
+            iccaa:
+              - 'services/iccaa-web/**'
+              - 'docker-compose.yml'
+              - 'docker-compose.prod.yml'
+
+  build-api:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.api_changed == 'true' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push API candidate image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/api
+          push: true
+          provenance: false
+          tags: ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-api:pr-${{ github.event.pull_request.number }}
+          cache-from: |
+            type=registry,ref=ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-api:buildcache
+            type=registry,ref=ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-api:pr-${{ github.event.pull_request.number }}
+            type=registry,ref=ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-api:main
+          cache-to: type=registry,ref=ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-api:buildcache,mode=max
+
+  build-public:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.public_changed == 'true' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push web-public candidate image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/web-public
+          push: true
+          provenance: false
+          tags: ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-web-public:pr-${{ github.event.pull_request.number }}
+          cache-from: |
+            type=registry,ref=ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-web-public:buildcache
+            type=registry,ref=ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-web-public:pr-${{ github.event.pull_request.number }}
+            type=registry,ref=ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-web-public:main
+          cache-to: type=registry,ref=ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-web-public:buildcache,mode=max
+
+  build-app:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.app_changed == 'true' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push web-app candidate image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/web-app
+          push: true
+          provenance: false
+          tags: ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-web-app:pr-${{ github.event.pull_request.number }}
+          cache-from: |
+            type=registry,ref=ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-web-app:buildcache
+            type=registry,ref=ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-web-app:pr-${{ github.event.pull_request.number }}
+            type=registry,ref=ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-web-app:main
+          cache-to: type=registry,ref=ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-web-app:buildcache,mode=max
+
+  build-iccaa:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.iccaa_changed == 'true' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push ICCAA candidate image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/iccaa-web
+          push: true
+          provenance: false
+          tags: ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-iccaa-web:pr-${{ github.event.pull_request.number }}
+          cache-from: |
+            type=registry,ref=ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-iccaa-web:buildcache
+            type=registry,ref=ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-iccaa-web:pr-${{ github.event.pull_request.number }}
+            type=registry,ref=ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-iccaa-web:main
+          cache-to: type=registry,ref=ghcr.io/${{ needs.detect-changes.outputs.owner }}/shasvata-iccaa-web:buildcache,mode=max
+
+  release-artifacts:
+    runs-on: ubuntu-latest
+    needs:
+      - detect-changes
+      - build-api
+      - build-public
+      - build-app
+      - build-iccaa
+    if: ${{ always() && github.event.pull_request.draft == false }}
+    steps:
+      - name: Fail if any candidate build failed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ needs.build-api.result }}" = "failure" ] || [ "${{ needs.build-public.result }}" = "failure" ] || [ "${{ needs.build-app.result }}" = "failure" ] || [ "${{ needs.build-iccaa.result }}" = "failure" ]; then
+            echo "At least one candidate image build failed." >&2
+            exit 1
+          fi
+          if [ "${{ needs.build-api.result }}" = "cancelled" ] || [ "${{ needs.build-public.result }}" = "cancelled" ] || [ "${{ needs.build-app.result }}" = "cancelled" ] || [ "${{ needs.build-iccaa.result }}" = "cancelled" ]; then
+            echo "At least one candidate image build was cancelled." >&2
+            exit 1
+          fi
+
+      - name: Summarize candidate artifact readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "api_changed=${{ needs.detect-changes.outputs.api_changed }}"
+          echo "public_changed=${{ needs.detect-changes.outputs.public_changed }}"
+          echo "app_changed=${{ needs.detect-changes.outputs.app_changed }}"
+          echo "iccaa_changed=${{ needs.detect-changes.outputs.iccaa_changed }}"
