@@ -108,6 +108,14 @@ function WorkspaceCard({
 }: {
   workspace: DashboardOverviewModel["workspaces"][number];
 }) {
+  const actionItems = [
+    { label: "View Lead Inbox", href: `${workspace.href}/leads` },
+    { label: "Manage Configuration", href: `${workspace.href}/configuration` },
+    ...(workspace.liveHref
+      ? [{ label: "Visit live site", href: workspace.liveHref, external: true as const }]
+      : []),
+  ];
+
   return (
     <div
       className="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-transparent p-3 transition-all duration-200 hover:bg-[var(--portal-surface-soft)] hover:border-[var(--portal-border)] relative"
@@ -165,13 +173,7 @@ function WorkspaceCard({
         
         {/* Safe 3-Dot Interactive Menu Block */}
         <div className="relative z-10 flex h-8 items-center justify-center -mr-2">
-          <PortalActionMenu
-            items={[
-              { label: "View Lead Inbox", href: `${workspace.href}/leads` },
-              { label: "Manage Configuration", href: `${workspace.href}/configuration` },
-              { label: "Visit live site", href: `https://${workspace.domainLabel}`, external: true }
-            ]}
-          />
+          <PortalActionMenu items={actionItems} />
         </div>
       </div>
     </div>
