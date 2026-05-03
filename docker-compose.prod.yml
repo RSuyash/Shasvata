@@ -35,9 +35,11 @@ services:
       - proxy_net
     labels:
       traefik.enable: "true"
+      traefik.docker.network: "proxy_net"
       traefik.http.routers.shasvata-api.rule: "Host(`api.shasvata.com`)"
       traefik.http.routers.shasvata-api.entrypoints: "websecure"
       traefik.http.routers.shasvata-api.tls.certresolver: "letsencrypt"
+      traefik.http.routers.shasvata-api.priority: "100"
       traefik.http.services.shasvata-api.loadbalancer.server.port: "4000"
 
   intelligence-api:
@@ -50,9 +52,13 @@ services:
       - proxy_net
     labels:
       traefik.enable: "true"
+      traefik.docker.network: "proxy_net"
       traefik.http.routers.shasvata-intelligence-api.rule: "Host(`api.shasvata.com`) && PathPrefix(`/intelligence`)"
       traefik.http.routers.shasvata-intelligence-api.entrypoints: "websecure"
       traefik.http.routers.shasvata-intelligence-api.tls.certresolver: "letsencrypt"
+      traefik.http.routers.shasvata-intelligence-api.priority: "200"
+      traefik.http.routers.shasvata-intelligence-api.middlewares: "shasvata-intelligence-strip"
+      traefik.http.middlewares.shasvata-intelligence-strip.stripprefix.prefixes: "/intelligence"
       traefik.http.services.shasvata-intelligence-api.loadbalancer.server.port: "4100"
 
   worker:
@@ -72,7 +78,8 @@ services:
       - proxy_net
     labels:
       traefik.enable: "true"
-      traefik.http.routers.shasvata-www.rule: "Host(`shasvata.com`)"
+      traefik.docker.network: "proxy_net"
+      traefik.http.routers.shasvata-www.rule: "Host(`shasvata.com`) || Host(`www.shasvata.com`)"
       traefik.http.routers.shasvata-www.entrypoints: "websecure"
       traefik.http.routers.shasvata-www.tls.certresolver: "letsencrypt"
       traefik.http.services.shasvata-www.loadbalancer.server.port: "3000"
@@ -85,6 +92,7 @@ services:
       - proxy_net
     labels:
       traefik.enable: "true"
+      traefik.docker.network: "proxy_net"
       traefik.http.routers.shasvata-insights.rule: "Host(`insights.shasvata.com`)"
       traefik.http.routers.shasvata-insights.entrypoints: "websecure"
       traefik.http.routers.shasvata-insights.tls.certresolver: "letsencrypt"
@@ -98,6 +106,7 @@ services:
       - proxy_net
     labels:
       traefik.enable: "true"
+      traefik.docker.network: "proxy_net"
       traefik.http.routers.shasvata-intelligence.rule: "Host(`intelligence.shasvata.com`)"
       traefik.http.routers.shasvata-intelligence.entrypoints: "websecure"
       traefik.http.routers.shasvata-intelligence.tls.certresolver: "letsencrypt"
@@ -111,6 +120,7 @@ services:
       - proxy_net
     labels:
       traefik.enable: "true"
+      traefik.docker.network: "proxy_net"
       traefik.http.routers.shasvata-app.rule: "Host(`app.shasvata.com`)"
       traefik.http.routers.shasvata-app.entrypoints: "websecure"
       traefik.http.routers.shasvata-app.tls.certresolver: "letsencrypt"
@@ -124,6 +134,7 @@ services:
       - proxy_net
     labels:
       traefik.enable: "true"
+      traefik.docker.network: "proxy_net"
       traefik.http.routers.shasvata-admin.rule: "Host(`admin.shasvata.com`)"
       traefik.http.routers.shasvata-admin.entrypoints: "websecure"
       traefik.http.routers.shasvata-admin.tls.certresolver: "letsencrypt"
