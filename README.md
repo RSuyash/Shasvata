@@ -1,72 +1,65 @@
 # Shasvata
 
-Growth infrastructure platform — marketing website, lead intake API, and client dashboard.
+Shasvata is sustainability intelligence infrastructure. This repository is the foundation monorepo for public surfaces, product shells, APIs, data primitives, scoring primitives, Docker infrastructure, and deployment workflows.
 
-## Services
+This is a foundation sprint, not final UI polish. The app screens are intentionally minimal placeholders that prove routing, health checks, fixture loading, and service boundaries.
 
-| Service | Path | Port | Domain |
-|---------|------|------|--------|
-| **web-public** | `services/web-public` | 3000 | `shasvata.com` |
-| **api** | `services/api` | 3001 | `api.shasvata.com` |
-| **web-app** | `services/web-app` | 3002 | `shasvata.com/app` |
-| **iccaa-web** | `services/iccaa-web` | 8080 | `iccaa.shasvata.com` |
+## Monorepo Structure
 
-## Canonical Workspace Routes
+- `apps/www` - public website for `shasvata.com`
+- `apps/insights` - Academy / Insights publishing surface
+- `apps/intelligence` - public Shasvata Intelligence product surface
+- `apps/app` - authenticated workspace shell with mock auth only
+- `apps/admin` - internal operator shell with mock auth only
+- `services/platform-api` - TypeScript Fastify platform API
+- `services/intelligence-api` - Python FastAPI intelligence API
+- `services/worker` - Redis-ready background worker foundation
+- `packages/*` - shared TypeScript primitives
+- `python/shasvata_core` - reusable Python intelligence primitives
+- `db` - migrations, seeds, and sample fixtures
+- `infra` and `scripts` - Docker, Traefik, smoke, deployment, and local tooling
 
-The authenticated workspace now lives under the `/dashboard` namespace:
+## Naming Rule
 
-- `/dashboard`
-- `/dashboard/projects`
-- `/dashboard/projects/[projectId]`
-- `/dashboard/projects/[projectId]/leads`
-- `/dashboard/projects/[projectId]/billing`
-- `/dashboard/projects/[projectId]/analytics`
-- `/dashboard/settings`
+Do not use `iccaa` in folder names, package names, service names, database schemas, code symbols, Docker images, environment variables, or route namespaces. Use `intelligence` for technical primitives.
 
-Legacy `/projects` URLs are preserved as permanent redirects so existing links and bookmarks continue to work.
-
-## Quick Start
+## Local Setup
 
 ```bash
-# 1. Clone
-git clone git@github.com:RSuyash/Shasvata.git
-cd shasvata
-
-# 2. Install dependencies
-cd services/web-public && npm ci && cd ../..
-cd services/api && npm ci && cd ../..
-cd services/web-app && npm ci && cd ../..
-cd services/iccaa-web && npm ci && cd ../..
-
-# 3. Set up environment
-cp .env.example .env
-# Edit .env with your Notion API key, Resend key, etc.
-
-# 4. Run locally
-cd services/web-public && npm run dev   # http://localhost:3000
-cd services/api && npm run dev          # http://localhost:3001
-cd services/web-app && npm run dev      # http://localhost:3002/app
-cd services/iccaa-web && npm run dev    # http://localhost:3003
-
-# Or with Docker:
-docker compose up --build
+pnpm install
+python -m pip install -r services/intelligence-api/requirements.txt
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm python:test
 ```
 
-## Development Workflow
+## Docker Setup
 
-See [docs/ops/DEVELOPMENT_WORKFLOW.md](docs/ops/DEVELOPMENT_WORKFLOW.md).
+```bash
+cp .env.example .env
+pnpm docker:build
+docker compose up -d
+pnpm smoke
+```
 
-- `main` is release-only — no direct commits
-- Every change starts from a GitHub Issue
-- Branch naming: `feat/<issue-number>-<name>`, `fix/<issue-number>-<name>`, etc.
-- PRs require issue linkage and CI green before merge
+## Health URLs
 
-## Deployment
+- `http://localhost:3000/health`
+- `http://localhost:3001/health`
+- `http://localhost:3002/health`
+- `http://localhost:3003/health`
+- `http://localhost:3004/health`
+- `http://localhost:4000/health`
+- `http://localhost:4100/health`
 
-Merge to `main` triggers automatic deployment:
+## CI/CD Overview
 
-1. PR builds Docker images → pushes to GHCR
-2. Deploy workflow promotes images and SSH deploys to VPS
-3. Post-deploy smoke checks validate all services
+GitHub Actions runs lint, typecheck, tests, builds, Python tests, Docker image builds, GHCR publication on `main`, deploy, and manual rollback. Production Compose expects Traefik and an external `proxy_net`.
 
-See [docs/architecture.md](docs/architecture.md) for infrastructure details.
+## Foundation Status
+
+Implemented: monorepo wiring, route-complete shells, health routes, fixture-backed APIs, Dockerfiles, Compose, GHCR workflows, deployment skeleton, rollback skeleton, smoke checks, DB migration, sample fixtures, Python scoring tests, and docs.
+
+Deferred: final UI, real auth, payments, full source ingestion, full extraction, LLM-assisted extraction, production admin authorization, and final methodology research.

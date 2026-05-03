@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <!-- Background -->
-  <rect width="64" height="64" rx="14" fill="#0F3460"/>
-  <!-- N letterform -->
-  <path d="M14 48V16h7.5l17 22.4V16H46v32h-7.5L21.5 25.6V48H14z" fill="#0EA5E9"/>
-  <!-- Accent dot -->
-  <circle cx="49" cy="15" r="4" fill="#38BDF8"/>
-</svg>

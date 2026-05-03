@@ -1,0 +1,7 @@
+http:
+  middlewares:
+    shasvata-secure-headers:
+      headers:
+        frameDeny: true
+        contentTypeNosniff: true
+        referrerPolicy: "strict-origin-when-cross-origin"

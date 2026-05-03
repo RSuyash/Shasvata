@@ -1,23 +1,140 @@
-# Shasvata — Production override (GHCR images)
-# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+name: shasvata-prod
 
 services:
-  api:
-    image: ${NG_API_IMAGE:?NG_API_IMAGE is required}
-    pull_policy: always
-    build: !reset null
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - shasvata_internal_net
 
-  web-public:
-    image: ${NG_PUBLIC_IMAGE:?NG_PUBLIC_IMAGE is required}
-    pull_policy: always
-    build: !reset null
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - shasvata_internal_net
 
-  web-app:
-    image: ${NG_APP_IMAGE:?NG_APP_IMAGE is required}
-    pull_policy: always
-    build: !reset null
+  platform-api:
+    image: ${GHCR_IMAGE_NAMESPACE}/platform-api:${IMAGE_TAG:-main}
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      PORT: 4000
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+    networks:
+      - shasvata_internal_net
+      - proxy_net
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.shasvata-api.rule: "Host(`api.shasvata.com`)"
+      traefik.http.routers.shasvata-api.entrypoints: "websecure"
+      traefik.http.routers.shasvata-api.tls.certresolver: "letsencrypt"
+      traefik.http.services.shasvata-api.loadbalancer.server.port: "4000"
 
-  iccaa-web:
-    image: ${NG_ICCAA_IMAGE:?NG_ICCAA_IMAGE is required}
-    pull_policy: always
-    build: !reset null
+  intelligence-api:
+    image: ${GHCR_IMAGE_NAMESPACE}/intelligence-api:${IMAGE_TAG:-main}
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+    networks:
+      - shasvata_internal_net
+      - proxy_net
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.shasvata-intelligence-api.rule: "Host(`api.shasvata.com`) && PathPrefix(`/intelligence`)"
+      traefik.http.routers.shasvata-intelligence-api.entrypoints: "websecure"
+      traefik.http.routers.shasvata-intelligence-api.tls.certresolver: "letsencrypt"
+      traefik.http.services.shasvata-intelligence-api.loadbalancer.server.port: "4100"
+
+  worker:
+    image: ${GHCR_IMAGE_NAMESPACE}/worker:${IMAGE_TAG:-main}
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      REDIS_URL: ${REDIS_URL}
+    networks:
+      - shasvata_internal_net
+
+  www:
+    image: ${GHCR_IMAGE_NAMESPACE}/www:${IMAGE_TAG:-main}
+    restart: unless-stopped
+    networks:
+      - shasvata_internal_net
+      - proxy_net
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.shasvata-www.rule: "Host(`shasvata.com`)"
+      traefik.http.routers.shasvata-www.entrypoints: "websecure"
+      traefik.http.routers.shasvata-www.tls.certresolver: "letsencrypt"
+      traefik.http.services.shasvata-www.loadbalancer.server.port: "3000"
+
+  insights:
+    image: ${GHCR_IMAGE_NAMESPACE}/insights:${IMAGE_TAG:-main}
+    restart: unless-stopped
+    networks:
+      - shasvata_internal_net
+      - proxy_net
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.shasvata-insights.rule: "Host(`insights.shasvata.com`)"
+      traefik.http.routers.shasvata-insights.entrypoints: "websecure"
+      traefik.http.routers.shasvata-insights.tls.certresolver: "letsencrypt"
+      traefik.http.services.shasvata-insights.loadbalancer.server.port: "3001"
+
+  intelligence:
+    image: ${GHCR_IMAGE_NAMESPACE}/intelligence:${IMAGE_TAG:-main}
+    restart: unless-stopped
+    networks:
+      - shasvata_internal_net
+      - proxy_net
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.shasvata-intelligence.rule: "Host(`intelligence.shasvata.com`)"
+      traefik.http.routers.shasvata-intelligence.entrypoints: "websecure"
+      traefik.http.routers.shasvata-intelligence.tls.certresolver: "letsencrypt"
+      traefik.http.services.shasvata-intelligence.loadbalancer.server.port: "3002"
+
+  app:
+    image: ${GHCR_IMAGE_NAMESPACE}/app:${IMAGE_TAG:-main}
+    restart: unless-stopped
+    networks:
+      - shasvata_internal_net
+      - proxy_net
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.shasvata-app.rule: "Host(`app.shasvata.com`)"
+      traefik.http.routers.shasvata-app.entrypoints: "websecure"
+      traefik.http.routers.shasvata-app.tls.certresolver: "letsencrypt"
+      traefik.http.services.shasvata-app.loadbalancer.server.port: "3003"
+
+  admin:
+    image: ${GHCR_IMAGE_NAMESPACE}/admin:${IMAGE_TAG:-main}
+    restart: unless-stopped
+    networks:
+      - shasvata_internal_net
+      - proxy_net
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.shasvata-admin.rule: "Host(`admin.shasvata.com`)"
+      traefik.http.routers.shasvata-admin.entrypoints: "websecure"
+      traefik.http.routers.shasvata-admin.tls.certresolver: "letsencrypt"
+      traefik.http.services.shasvata-admin.loadbalancer.server.port: "3004"
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  shasvata_internal_net:
+    name: shasvata_internal_net
+  proxy_net:
+    external: true

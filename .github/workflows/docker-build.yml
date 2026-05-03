@@ -1,0 +1,53 @@
+name: Docker Build
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+env:
+  IMAGE_NAMESPACE: ghcr.io/rsuyash/shasvata
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: www
+            dockerfile: apps/www/Dockerfile
+          - image: insights
+            dockerfile: apps/insights/Dockerfile
+          - image: intelligence
+            dockerfile: apps/intelligence/Dockerfile
+          - image: app
+            dockerfile: apps/app/Dockerfile
+          - image: admin
+            dockerfile: apps/admin/Dockerfile
+          - image: platform-api
+            dockerfile: services/platform-api/Dockerfile
+          - image: intelligence-api
+            dockerfile: services/intelligence-api/Dockerfile
+          - image: worker
+            dockerfile: services/worker/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: |
+            ${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}:${{ github.sha }}
+            ${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}:main

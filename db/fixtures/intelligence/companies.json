@@ -1,0 +1,20 @@
+[
+  {
+    "slug": "reliance-industries-limited",
+    "name": "Reliance Industries Limited",
+    "sector": "Energy and Materials",
+    "status": "sample"
+  },
+  {
+    "slug": "tata-steel-limited",
+    "name": "Tata Steel Limited",
+    "sector": "Metals",
+    "status": "sample"
+  },
+  {
+    "slug": "infosys-limited",
+    "name": "Infosys Limited",
+    "sector": "Information Technology",
+    "status": "sample"
+  }
+]
