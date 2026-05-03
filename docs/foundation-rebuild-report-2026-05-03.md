@@ -113,6 +113,12 @@ Remote VPS validation passed:
 - Production Compose stack is running as `shasvata-prod`.
 - Live HTTPS smoke checks passed for every resolvable public route.
 
+GitHub PR validation passed:
+
+- PR: `https://github.com/RSuyash/Shasvata/pull/1`
+- `validate` workflow passed.
+- Docker Build matrix passed for `www`, `insights`, `intelligence`, `app`, `admin`, `platform-api`, `intelligence-api`, and `worker`.
+
 Local developer-machine Docker note:
 
 - Windows Docker Desktop did not expose the local Linux engine during validation, so local `docker compose build` could not run on this machine.
