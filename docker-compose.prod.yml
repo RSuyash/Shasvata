@@ -110,6 +110,12 @@ services:
       traefik.http.routers.shasvata-intelligence.rule: "Host(`intelligence.shasvata.com`)"
       traefik.http.routers.shasvata-intelligence.entrypoints: "websecure"
       traefik.http.routers.shasvata-intelligence.tls.certresolver: "letsencrypt"
+      traefik.http.routers.shasvata-intelligence-path.rule: "Host(`shasvata.com`) && PathPrefix(`/intelligence`)"
+      traefik.http.routers.shasvata-intelligence-path.entrypoints: "websecure"
+      traefik.http.routers.shasvata-intelligence-path.tls.certresolver: "letsencrypt"
+      traefik.http.routers.shasvata-intelligence-path.priority: "300"
+      traefik.http.routers.shasvata-intelligence-path.middlewares: "shasvata-intelligence-app-strip"
+      traefik.http.middlewares.shasvata-intelligence-app-strip.stripprefix.prefixes: "/intelligence"
       traefik.http.services.shasvata-intelligence.loadbalancer.server.port: "3002"
 
   app:
@@ -138,6 +144,12 @@ services:
       traefik.http.routers.shasvata-admin.rule: "Host(`admin.shasvata.com`)"
       traefik.http.routers.shasvata-admin.entrypoints: "websecure"
       traefik.http.routers.shasvata-admin.tls.certresolver: "letsencrypt"
+      traefik.http.routers.shasvata-admin-path.rule: "Host(`shasvata.com`) && PathPrefix(`/admin`)"
+      traefik.http.routers.shasvata-admin-path.entrypoints: "websecure"
+      traefik.http.routers.shasvata-admin-path.tls.certresolver: "letsencrypt"
+      traefik.http.routers.shasvata-admin-path.priority: "300"
+      traefik.http.routers.shasvata-admin-path.middlewares: "shasvata-admin-strip"
+      traefik.http.middlewares.shasvata-admin-strip.stripprefix.prefixes: "/admin"
       traefik.http.services.shasvata-admin.loadbalancer.server.port: "3004"
 
 volumes:
