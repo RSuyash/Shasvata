@@ -1,0 +1,65 @@
+:root {
+  color: #1a1a1a;
+  background: #fdf8f0;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+a {
+  color: #1b4332;
+  font-weight: 700;
+}
+
+.sv-shell {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 48px 20px;
+}
+
+.sv-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.sv-card {
+  background: #ffffff;
+  border: 1px solid #d8f3dc;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.sv-badge {
+  display: inline-block;
+  border: 1px solid #c9a84c;
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: #1b4332;
+  font-size: 0.875rem;
+}
+
+.sv-eyebrow {
+  color: #40916c;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.sv-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.sv-table th,
+.sv-table td {
+  border-bottom: 1px solid #d8f3dc;
+  padding: 10px;
+  text-align: left;
+}
+
+.sv-metric {
+  display: block;
+  font-size: 2rem;
+}

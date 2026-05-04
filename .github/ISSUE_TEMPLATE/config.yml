@@ -1,5 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: Development Workflow SOP
-    url: https://github.com/RSuyash/Shasvata/blob/main/docs/ops/DEVELOPMENT_WORKFLOW.md
-    about: Read this before opening issues and PRs.

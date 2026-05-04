@@ -1,0 +1,29 @@
+[
+  {
+    "entitySlug": "reliance-industries-limited",
+    "metricKey": "scope_1_emissions",
+    "label": "Scope 1 emissions",
+    "value": 12.4,
+    "unit": "MtCO2e",
+    "confidenceGrade": "B",
+    "sourceLabel": "Sample annual disclosure"
+  },
+  {
+    "entitySlug": "tata-steel-limited",
+    "metricKey": "renewable_power_share",
+    "label": "Renewable power share",
+    "value": 18.2,
+    "unit": "%",
+    "confidenceGrade": "C",
+    "sourceLabel": "Sample sustainability report"
+  },
+  {
+    "entitySlug": "infosys-limited",
+    "metricKey": "water_recycled",
+    "label": "Water recycled",
+    "value": 56.1,
+    "unit": "%",
+    "confidenceGrade": "B",
+    "sourceLabel": "Sample ESG disclosure"
+  }
+]

@@ -1,0 +1,35 @@
+{
+  "name": "shasvata",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@10.18.3",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "format": "prettier --write .",
+    "clean": "turbo clean && node scripts/setup/clean.mjs",
+    "docker:dev": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build",
+    "docker:build": "docker compose build",
+    "db:migrate": "node scripts/db/migrate.mjs",
+    "db:seed": "node scripts/db/seed.mjs",
+    "smoke": "node scripts/smoke/smoke.mjs",
+    "python:test": "python -m pytest python/tests services/intelligence-api/tests"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^22.10.5",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "eslint": "^9.39.1",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "turbo": "^2.5.8",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.48.0",
+    "vitest": "^2.1.9"
+  }
+}

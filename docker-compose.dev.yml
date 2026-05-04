@@ -1,0 +1,35 @@
+services:
+  platform-api:
+    command: pnpm --filter @shasvata/platform-api dev
+    volumes:
+      - ./services/platform-api:/repo/services/platform-api
+
+  worker:
+    command: pnpm --filter @shasvata/worker dev
+    volumes:
+      - ./services/worker:/repo/services/worker
+
+  www:
+    command: pnpm --filter @shasvata/www dev
+    volumes:
+      - ./apps/www:/repo/apps/www
+
+  insights:
+    command: pnpm --filter @shasvata/insights dev
+    volumes:
+      - ./apps/insights:/repo/apps/insights
+
+  intelligence:
+    command: pnpm --filter @shasvata/intelligence dev
+    volumes:
+      - ./apps/intelligence:/repo/apps/intelligence
+
+  app:
+    command: pnpm --filter @shasvata/app dev
+    volumes:
+      - ./apps/app:/repo/apps/app
+
+  admin:
+    command: pnpm --filter @shasvata/admin dev
+    volumes:
+      - ./apps/admin:/repo/apps/admin

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "sample-source-1",
+    "entitySlug": "reliance-industries-limited",
+    "title": "Sample annual disclosure",
+    "status": "sample"
+  },
+  {
+    "id": "sample-source-2",
+    "entitySlug": "tata-steel-limited",
+    "title": "Sample sustainability report",
+    "status": "sample"
+  },
+  {
+    "id": "sample-source-3",
+    "entitySlug": "infosys-limited",
+    "title": "Sample ESG disclosure",
+    "status": "sample"
+  }
+]

@@ -1,0 +1,23 @@
+[
+  {
+    "entitySlug": "reliance-industries-limited",
+    "scoreKey": "sample_vbi",
+    "value": 61.2,
+    "confidenceGrade": "B",
+    "methodologyVersion": "foundation-0.1"
+  },
+  {
+    "entitySlug": "tata-steel-limited",
+    "scoreKey": "sample_vbi",
+    "value": 58.4,
+    "confidenceGrade": "C",
+    "methodologyVersion": "foundation-0.1"
+  },
+  {
+    "entitySlug": "infosys-limited",
+    "scoreKey": "sample_vbi",
+    "value": 72.5,
+    "confidenceGrade": "B",
+    "methodologyVersion": "foundation-0.1"
+  }
+]
